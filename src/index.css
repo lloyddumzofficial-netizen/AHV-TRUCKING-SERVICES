@@ -1,0 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap');
+
+:root {
+  --bg: #f7faf8;
+  --ink: #111827;
+  --muted: #5f6b62;
+  --line: #dfe7e1;
+  --soft: #f2f5f2;
+  --green: #16a34a;
+  --green-dark: #0f7a39;
+  --soft-green: #eaf8ef;
+  --orange: #f97316;
+  --font-main: 'Outfit', Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  overflow-x: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-main);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  border-radius: 0;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+::selection {
+  color: #fff;
+  background: var(--green);
+}
