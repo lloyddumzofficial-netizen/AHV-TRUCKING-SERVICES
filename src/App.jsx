@@ -29,6 +29,15 @@ const VIEW_PATHS = {
   [CLIENT_VIEWS.truck]: '/#truck',
 };
 
+function withTimeout(promise, timeoutMs, timeoutMessage) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
+}
+
 function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly = false }) {
   const [inquiry, setInquiry] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -54,17 +63,28 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
 
     let mounted = true;
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) {
-        return;
-      }
+    withTimeout(supabase.auth.getSession(), 5000, 'Auth check timed out. Please sign in again.')
+      .then(({ data }) => {
+        if (!mounted) {
+          return;
+        }
 
-      setSession(data.session);
-      if (!data.session) {
+        setSession(data.session);
+        if (!data.session) {
+          setProfile(null);
+        }
+        setAuthReady(true);
+      })
+      .catch((authError) => {
+        if (!mounted) {
+          return;
+        }
+
+        setProfileStatus(authError.message || 'Could not check your session.');
+        setSession(null);
         setProfile(null);
-      }
-      setAuthReady(true);
-    });
+        setAuthReady(true);
+      });
 
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
@@ -87,7 +107,7 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
     setProfile(undefined);
     setProfileStatus('Checking account...');
 
-    getProfile(session.access_token)
+    withTimeout(getProfile(session.access_token), 7000, 'Profile check timed out. Please refresh or sign in again.')
       .then((loadedProfile) => {
         if (active) {
           setProfile(loadedProfile);
