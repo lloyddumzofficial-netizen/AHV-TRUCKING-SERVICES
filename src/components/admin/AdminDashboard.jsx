@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarClock, ClipboardList, Image as ImageIcon, Loader2, LogOut, PhoneCall, RefreshCw, Search, ShieldCheck, Truck, UserRound } from 'lucide-react';
+import { Ban, CalendarClock, ClipboardList, Image as ImageIcon, Loader2, LogOut, PhoneCall, RefreshCw, Search, ShieldCheck, Trash2, Truck, UserRound } from 'lucide-react';
 import { INQUIRY_STATUSES, INQUIRY_STATUS_HELP, INQUIRY_STATUS_LABELS } from '../../data/inquiryStatus.js';
-import { getAdminInquiries, updateAdminInquiry } from '../../lib/admin/api.js';
+import { deleteAdminInquiry, getAdminInquiries, updateAdminInquiry } from '../../lib/admin/api.js';
 import { getSupabaseBrowserClient } from '../../lib/supabase/client.js';
 import AdminRouteTools from './AdminRouteTools.jsx';
 
@@ -84,6 +84,7 @@ function AdminDashboard({ session, profile, setSession }) {
   const [lastSyncedAt, setLastSyncedAt] = useState('');
   const [liveStatus, setLiveStatus] = useState('');
   const [newInquiryNotice, setNewInquiryNotice] = useState('');
+  const [pendingDeleteReference, setPendingDeleteReference] = useState('');
   const isAdmin = profile?.role === 'admin';
   const supabase = getSupabaseBrowserClient();
   const knownReferencesRef = useRef(new Set());
@@ -205,6 +206,7 @@ function AdminDashboard({ session, profile, setSession }) {
 
   useEffect(() => {
     setForm(createFormState(selectedInquiry));
+    setPendingDeleteReference('');
   }, [selectedInquiry]);
 
   const updateForm = (field, value) => {
@@ -227,6 +229,56 @@ function AdminDashboard({ session, profile, setSession }) {
       setStatus('Inquiry updated.');
     } catch (saveError) {
       setStatus(saveError.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const rejectInquiry = async () => {
+    if (!selectedInquiry || !session?.access_token) {
+      return;
+    }
+
+    setIsSaving(true);
+    setStatus('Rejecting inquiry...');
+
+    try {
+      await updateAdminInquiry(session.access_token, selectedInquiry.reference, {
+        ...form,
+        status: 'cancelled',
+        adminNotes: form.adminNotes || 'Inquiry rejected by AHV admin.',
+      });
+      await loadDashboard({ quiet: true });
+      setStatus('Inquiry rejected.');
+    } catch (rejectError) {
+      setStatus(rejectError.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteInquiry = async () => {
+    if (!selectedInquiry || !session?.access_token) {
+      return;
+    }
+
+    if (pendingDeleteReference !== selectedInquiry.reference) {
+      setPendingDeleteReference(selectedInquiry.reference);
+      setStatus('Tap Delete Inquiry again to permanently remove this inquiry record.');
+      return;
+    }
+
+    setIsSaving(true);
+    setStatus('Deleting inquiry...');
+
+    try {
+      await deleteAdminInquiry(session.access_token, selectedInquiry.reference);
+      setPendingDeleteReference('');
+      setSelectedReference('');
+      await loadDashboard({ quiet: true });
+      setStatus('Inquiry deleted.');
+    } catch (deleteError) {
+      setStatus(deleteError.message);
     } finally {
       setIsSaving(false);
     }
@@ -364,6 +416,22 @@ function AdminDashboard({ session, profile, setSession }) {
               </span>
             </div>
 
+            <div className="admin-danger-actions">
+              <button type="button" onClick={rejectInquiry} disabled={isSaving || selectedInquiry.status === 'cancelled'}>
+                <Ban size={16} />
+                Reject Inquiry
+              </button>
+              <button
+                className={pendingDeleteReference === selectedInquiry.reference ? 'confirm' : ''}
+                type="button"
+                onClick={deleteInquiry}
+                disabled={isSaving}
+              >
+                <Trash2 size={16} />
+                {pendingDeleteReference === selectedInquiry.reference ? 'Confirm Delete' : 'Delete Inquiry'}
+              </button>
+            </div>
+
             <div className="admin-detail-grid">
               <p><strong>Pickup:</strong> {selectedInquiry.pickup_address}</p>
               <p><strong>Delivery:</strong> {selectedInquiry.delivery_address}</p>
@@ -436,21 +504,33 @@ function AdminDashboard({ session, profile, setSession }) {
               </button>
             </form>
 
-            {selectedInquiry.images?.length > 0 && (
-              <div className="admin-images">
-                <div className="admin-detail-title">
-                  <ImageIcon size={18} />
-                  <h4>Cargo images</h4>
-                </div>
-                <div>
-                  {selectedInquiry.images.map((image) => (
-                    <a key={image.id || image.public_url} href={image.public_url} target="_blank" rel="noreferrer">
-                      <img src={image.public_url} alt={image.filename} />
-                    </a>
-                  ))}
-                </div>
+            <div className="admin-images">
+              <div className="admin-detail-title">
+                <ImageIcon size={18} />
+                <h4>Cargo images</h4>
               </div>
-            )}
+              {selectedInquiry.images?.length > 0 ? (
+                <div>
+                  {selectedInquiry.images.map((image) => {
+                    const imageUrl = image.public_url || image.publicUrl || image.url;
+
+                    return imageUrl ? (
+                      <a key={image.id || imageUrl} href={imageUrl} target="_blank" rel="noreferrer">
+                        <img src={imageUrl} alt={image.filename || 'Cargo image'} />
+                        <span>{image.filename || 'Cargo image'}</span>
+                      </a>
+                    ) : (
+                      <div className="admin-image-missing" key={image.id || image.filename}>
+                        <ImageIcon size={20} />
+                        <span>{image.filename || 'Cargo image'} has no public URL.</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="admin-empty-note">No cargo images were attached to this inquiry.</p>
+              )}
+            </div>
 
             <div className="admin-history">
               <div className="admin-detail-title">

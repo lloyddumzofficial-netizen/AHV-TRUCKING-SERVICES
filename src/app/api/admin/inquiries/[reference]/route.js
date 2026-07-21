@@ -119,3 +119,38 @@ export async function PATCH(request, { params }) {
 
   return NextResponse.json({ inquiry });
 }
+
+export async function DELETE(request, { params }) {
+  const context = await getAdminContext(request);
+
+  if (context.error) {
+    return NextResponse.json({ error: context.error }, { status: context.status });
+  }
+
+  const { reference } = await params;
+  const supabase = context.supabase;
+  const { data: existing, error: existingError } = await supabase
+    .from('inquiries')
+    .select('reference')
+    .eq('reference', reference)
+    .maybeSingle();
+
+  if (existingError) {
+    return NextResponse.json({ error: existingError.message }, { status: 502 });
+  }
+
+  if (!existing) {
+    return NextResponse.json({ error: 'Inquiry not found.' }, { status: 404 });
+  }
+
+  const { error } = await supabase
+    .from('inquiries')
+    .delete()
+    .eq('reference', reference);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 502 });
+  }
+
+  return NextResponse.json({ deleted: true, reference });
+}

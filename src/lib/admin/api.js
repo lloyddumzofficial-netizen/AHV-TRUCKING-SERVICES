@@ -46,3 +46,19 @@ export async function updateAdminInquiry(accessToken, reference, updates) {
 
   return payload;
 }
+
+export async function deleteAdminInquiry(accessToken, reference) {
+  const response = await fetch(`/api/admin/inquiries/${encodeURIComponent(reference)}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload.error || 'Could not delete inquiry.');
+  }
+
+  return payload;
+}

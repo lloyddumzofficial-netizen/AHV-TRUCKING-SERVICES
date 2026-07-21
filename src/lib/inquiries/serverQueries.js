@@ -47,7 +47,11 @@ export async function hydrateInquiryRows(supabase, rows = []) {
 
   return rows.map((row) => ({
     ...row,
-    images: imagesByReference.get(row.reference) || [],
+    images: (imagesByReference.get(row.reference) || []).map((image) => ({
+      ...image,
+      public_url: image.public_url || image.publicUrl || image.url || '',
+      filename: image.filename || image.name || 'cargo-image',
+    })),
     status_history: historyByReference.get(row.reference) || [],
   }));
 }
