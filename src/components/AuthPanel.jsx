@@ -4,6 +4,26 @@ import { useState } from 'react';
 import { LogIn, LogOut, ShieldCheck, UserRound } from 'lucide-react';
 import { getSupabaseBrowserClient } from '../lib/supabase/client.js';
 
+function getAppOrigin() {
+  const configuredOrigin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '');
+
+  if (configuredOrigin) {
+    return configuredOrigin;
+  }
+
+  return window.location.origin;
+}
+
+function getReturnPath() {
+  const path = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+  if (path === '/' || path === '/#auth') {
+    return '/inquire#auth';
+  }
+
+  return path;
+}
+
 function AuthPanel({ session, setSession }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -49,11 +69,12 @@ function AuthPanel({ session, setSession }) {
       return;
     }
 
-    const origin = window.location.origin;
+    const origin = getAppOrigin();
+    const nextPath = getReturnPath();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${origin}/auth/callback?next=${encodeURIComponent('/#auth')}`,
+        redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
       },
     });
 

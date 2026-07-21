@@ -4,7 +4,8 @@ import { NextResponse } from 'next/server';
 export async function GET(request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code');
-  const next = requestUrl.searchParams.get('next') || '/#auth';
+  const requestedNext = requestUrl.searchParams.get('next') || '/inquire#auth';
+  const next = requestedNext.startsWith('/') && !requestedNext.startsWith('//') ? requestedNext : '/inquire#auth';
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
