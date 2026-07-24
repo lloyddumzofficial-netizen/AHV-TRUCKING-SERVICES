@@ -9,7 +9,7 @@ import Footer from './components/Footer.jsx';
 import AuthPanel from './components/AuthPanel.jsx';
 import CustomerInquiryList from './components/CustomerInquiryList.jsx';
 import AdminDashboard from './components/admin/AdminDashboard.jsx';
-import { CONTACT_PHONE, CONTACT_PHONE_LABEL, SERVICE_LANES, TRUCK_INFO } from './data/siteContent.js';
+import { CONTACT_PHONE, CONTACT_PHONE_LABEL, SERVICE_LANES, TRUCK_INFO, FLEET } from './data/siteContent.js';
 import ProfileOnboarding from './components/profile/ProfileOnboarding.jsx';
 import { getProfile } from './lib/profile/api.js';
 import { getSupabaseBrowserClient } from './lib/supabase/client.js';
@@ -63,7 +63,7 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
 
     let mounted = true;
 
-    withTimeout(supabase.auth.getSession(), 5000, 'Auth check timed out. Please sign in again.')
+    withTimeout(supabase.auth.getSession(), 2000, 'Auth check timed out. Please sign in again.')
       .then(({ data }) => {
         if (!mounted) {
           return;
@@ -86,9 +86,14 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
         setAuthReady(true);
       });
 
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      setProfile(nextSession ? undefined : null);
+    const { data } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      setSession((prevSession) => {
+        // Only clear profile if the actual user identity changes
+        if (prevSession?.user?.id !== nextSession?.user?.id) {
+          setProfile(nextSession ? undefined : null);
+        }
+        return nextSession;
+      });
       setAuthReady(true);
     });
 
@@ -99,12 +104,16 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
   }, []);
 
   useEffect(() => {
-    if (!authReady || !session?.access_token) {
+    if (!authReady || !session?.user?.id) {
+      return;
+    }
+
+    // Only fetch if profile is undefined (not yet loaded for this user)
+    if (profile !== undefined) {
       return;
     }
 
     let active = true;
-    setProfile(undefined);
     setProfileStatus('Checking account...');
 
     withTimeout(getProfile(session.access_token), 7000, 'Profile check timed out. Please refresh or sign in again.')
@@ -124,7 +133,7 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
     return () => {
       active = false;
     };
-  }, [authReady, session?.access_token]);
+  }, [authReady, session?.user?.id, session?.access_token, profile]);
 
   const navItems = useMemo(
     () => [
@@ -174,6 +183,16 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
     window.history.replaceState(null, '', '/admin');
   }, [isAdmin]);
 
+  const handleSignOut = async () => {
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      await supabase.auth.signOut();
+      setSession(null);
+      setProfile(null);
+      navigateClient(CLIENT_VIEWS.home);
+    }
+  };
+
   const returnToTop = () => {
     setMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -183,13 +202,7 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
     <div className="app-shell">
       <header className="site-header">
         <button className="brand brand-button" type="button" aria-label="AHV Trucking home" onClick={() => (isAdmin ? returnToTop() : navigateClient(CLIENT_VIEWS.home))}>
-          <span className="brand-icon">
-            <Truck size={22} />
-          </span>
-          <span>
-            AHV
-            <small>Trucking Services</small>
-          </span>
+          <img src="/SVG/HEADER LOGO.svg" alt="AHV Logo" className="brand-logo-img" />
         </button>
 
         <nav className="desktop-nav" aria-label="Primary navigation">
@@ -207,10 +220,33 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
               {item.label}
             </button>
           ))}
+          {session && (
+            <button className="logout-button" type="button" onClick={handleSignOut} style={{ color: 'var(--red)', fontWeight: '600' }}>
+              Logout
+            </button>
+          )}
         </nav>
 
+        {!isAdmin && profile && profile.full_name && (
+          <button 
+            className="header-profile" 
+            onClick={() => navigateClient(CLIENT_VIEWS.myInquiries)}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
+            title="View My Inquiries"
+          >
+            {profile.profile_image_url ? (
+              <img src={profile.profile_image_url} alt="Profile" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }} />
+            ) : (
+              <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--line)', display: 'grid', placeItems: 'center' }}>
+                <span style={{ fontSize: '14px', fontWeight: 'bold' }}>{profile.full_name.charAt(0)}</span>
+              </div>
+            )}
+            <strong className="desktop-only" style={{ fontSize: '0.85rem', color: 'var(--ink)' }}>{profile.full_name.split(' ')[0]}</strong>
+          </button>
+        )}
+
         {CONTACT_PHONE && (
-          <a className="header-call" href={`tel:${CONTACT_PHONE}`}>
+          <a className="header-call" href={`tel:${CONTACT_PHONE}`} style={{ marginLeft: profile ? '1rem' : 'auto' }}>
             <Phone size={17} />
             {CONTACT_PHONE_LABEL || 'Call'}
           </a>
@@ -244,6 +280,11 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
                 {item.label}
               </button>
             ))}
+            {session && (
+              <button type="button" onClick={handleSignOut} style={{ color: 'var(--red)', fontWeight: '600' }}>
+                Logout
+              </button>
+            )}
           </nav>
         )}
       </header>
@@ -279,6 +320,7 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
                   lanes={SERVICE_LANES}
                   onInquire={() => navigateClient(CLIENT_VIEWS.inquire)}
                   onViewTruck={() => navigateClient(CLIENT_VIEWS.truck)}
+                  onMyInquiries={session ? () => navigateClient(CLIENT_VIEWS.myInquiries) : undefined}
                 />
                 <section className="home-next-actions">
                   <button type="button" onClick={() => navigateClient(CLIENT_VIEWS.inquire)}>
@@ -292,25 +334,21 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
             )}
 
             {clientView === CLIENT_VIEWS.truck && (
-              <section className="app-screen">
-                <div className="screen-heading">
-                  <p className="eyebrow">Truck service</p>
-                  <h1>Green Isuzu wingvan for AHV route requests.</h1>
-                  <button type="button" onClick={() => navigateClient(CLIENT_VIEWS.inquire)}>Inquire Delivery</button>
-                </div>
-                <TruckShowcase truck={TRUCK_INFO} lanes={SERVICE_LANES} />
+              <section className="app-screen" style={{ paddingTop: '1rem' }}>
+                <TruckShowcase fleet={FLEET} lanes={SERVICE_LANES} onInquire={() => navigateClient(CLIENT_VIEWS.inquire)} />
               </section>
             )}
 
             {clientView === CLIENT_VIEWS.inquire && (
-              <section className="app-screen inquiry-screen">
-                <div className="screen-heading">
-                  <p className="eyebrow">Create inquiry</p>
-                  <h1>Tell AHV where to pick up and deliver.</h1>
-                  <p>Sign in, complete your profile, then submit pickup, delivery, cargo details, and photos.</p>
-                </div>
-                <AuthPanel session={session} setSession={setSession} />
-                <InquiryForm onInquirySubmit={setInquiry} submittedInquiry={inquiry} session={session} profile={profile} />
+              <section className="app-screen inquiry-screen" style={{ paddingTop: '1rem' }}>
+                <InquiryForm 
+                  onInquirySubmit={setInquiry} 
+                  submittedInquiry={inquiry} 
+                  session={session} 
+                  profile={profile} 
+                  setSession={setSession} 
+                  onViewMyInquiries={() => navigateClient(CLIENT_VIEWS.myInquiries)} 
+                />
               </section>
             )}
 

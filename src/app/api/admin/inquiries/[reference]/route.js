@@ -69,6 +69,19 @@ export async function PATCH(request, { params }) {
     if (body.assignedAdminEmail !== undefined) {
       updates.assigned_admin_email = optionalString(body.assignedAdminEmail) || '';
     }
+
+    if (body.driverLat !== undefined && body.driverLng !== undefined) {
+      const lat = parseFloat(body.driverLat);
+      const lng = parseFloat(body.driverLng);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        updates.driver_lat = lat;
+        updates.driver_lng = lng;
+      }
+    }
+
+    if (body.driverLocation !== undefined) {
+      updates.driver_location = optionalString(body.driverLocation) || null;
+    }
   } catch (validationError) {
     return NextResponse.json({ error: validationError.message }, { status: 400 });
   }

@@ -84,15 +84,17 @@ function AuthPanel({ session, setSession }) {
   };
 
   return (
-    <section className="auth-panel" id="auth">
-      <div className="auth-copy">
-        <ShieldCheck size={22} />
-        <div>
-          <span>Secure backend</span>
-          <h2>Sign in to send an inquiry</h2>
-          <p>Use Google to continue quickly. Your inquiry will be saved to the live backend after sign in.</p>
+    <section className={`auth-panel ${session ? 'signed-in-panel' : ''}`} id="auth">
+      {!session && (
+        <div className="auth-copy">
+          <ShieldCheck size={22} />
+          <div>
+            <span>Secure backend</span>
+            <h2>Sign in to send an inquiry</h2>
+            <p>Use Google to continue quickly. Your inquiry will be saved to the live backend after sign in.</p>
+          </div>
         </div>
-      </div>
+      )}
 
       {session ? (
         <div className="auth-user">

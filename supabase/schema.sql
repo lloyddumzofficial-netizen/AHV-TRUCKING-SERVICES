@@ -44,6 +44,9 @@ alter table public.inquiries add column if not exists quoted_price numeric(12, 2
 alter table public.inquiries add column if not exists target_pickup_date timestamptz;
 alter table public.inquiries add column if not exists target_delivery_date timestamptz;
 alter table public.inquiries add column if not exists updated_by uuid references auth.users(id) on delete set null;
+alter table public.inquiries add column if not exists driver_location text;
+alter table public.inquiries add column if not exists driver_lat double precision;
+alter table public.inquiries add column if not exists driver_lng double precision;
 
 create index if not exists idx_inquiries_assigned_admin_id on public.inquiries(assigned_admin_id);
 create index if not exists idx_inquiries_assigned_admin_email on public.inquiries(assigned_admin_email);

@@ -13,6 +13,11 @@ const PhilippinesMapPicker = dynamic(() => import('./PhilippinesMapPicker.jsx'),
   loading: () => <div className="map-loading">Loading Philippine map...</div>,
 });
 
+const RouteDisplayMap = dynamic(() => import('./RouteDisplayMap.jsx'), {
+  ssr: false,
+  loading: () => <div className="map-loading" style={{ height: '100px' }}>Loading Route Map...</div>,
+});
+
 const CORRECTABLE_STATUSES = ['new', 'reviewing'];
 
 function getCustomerStatusClass(status) {
@@ -148,6 +153,9 @@ function CustomerInquiryCard({ inquiry, session, showTimeline = false, onSaved }
   const timeline = getTimeline(inquiry);
   const latestHistory = timeline[0];
   const visibleSteps = ['new', 'reviewing', 'quoted', 'scheduled', 'picked_up', 'in_transit', 'delivered'];
+  
+  const pickupPoint = { lat: Number(inquiry.pickup_lat), lng: Number(inquiry.pickup_lng) };
+  const deliveryPoint = { lat: Number(inquiry.delivery_lat), lng: Number(inquiry.delivery_lng) };
   const currentStepIndex = visibleSteps.includes(inquiryStatus) ? visibleSteps.indexOf(inquiryStatus) : 0;
   const [isCorrectingLocation, setIsCorrectingLocation] = useState(false);
   const canCorrectLocation = showTimeline && CORRECTABLE_STATUSES.includes(inquiryStatus);
@@ -217,6 +225,16 @@ function CustomerInquiryCard({ inquiry, session, showTimeline = false, onSaved }
           </div>
         </>
       )}
+
+      <RouteDisplayMap
+        pickup={pickupPoint}
+        delivery={deliveryPoint}
+        status={inquiryStatus}
+        driverLat={inquiry.driver_lat}
+        driverLng={inquiry.driver_lng}
+        driverLocation={inquiry.driver_location}
+        height="280px"
+      />
 
       {showTimeline && Number(inquiry.quoted_price) > 0 && (
         <div className="customer-quote-box">
@@ -290,11 +308,7 @@ function CustomerInquiryList({
 
     const channel = supabase
       .channel(`ahv-customer-status-${session.user.id}-${reference || 'all'}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'inquiries', filter: `user_id=eq.${session.user.id}` },
-        refreshInquiries,
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inquiries' }, refreshInquiries)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'inquiry_status_history' }, refreshInquiries)
       .subscribe();
 
@@ -303,6 +317,15 @@ function CustomerInquiryList({
       supabase.removeChannel(channel);
     };
   }, [loadInquiries, reference, session, supabase]);
+
+  // 30-second polling fallback for real-time truck position updates
+  useEffect(() => {
+    if (!session?.access_token) return undefined;
+    const interval = window.setInterval(() => {
+      loadInquiries();
+    }, 30000);
+    return () => window.clearInterval(interval);
+  }, [loadInquiries, session?.access_token]);
 
   const visibleInquiries = useMemo(() => {
     if (reference || !search.trim()) {

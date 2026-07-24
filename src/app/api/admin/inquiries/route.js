@@ -9,8 +9,8 @@ function mapInquiry(row, profilesById) {
     ...row,
     customer_profile: profilesById.get(row.user_id) || null,
     assigned_admin: row.assigned_admin_id ? profilesById.get(row.assigned_admin_id) || null : null,
-    images: row.inquiry_images || [],
-    status_history: row.inquiry_status_history || [],
+    images: row.images || [],
+    status_history: row.status_history || [],
   };
 }
 

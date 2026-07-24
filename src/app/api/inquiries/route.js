@@ -10,15 +10,19 @@ function missingBackendResponse() {
   );
 }
 
-function requiredString(value, field) {
+function requiredString(value, field, minLength = 1, pattern = null) {
   if (!value || typeof value !== 'string') {
     throw new Error(`${field} is required.`);
   }
 
   const trimmed = value.trim();
 
-  if (!trimmed) {
-    throw new Error(`${field} is required.`);
+  if (trimmed.length < minLength) {
+    throw new Error(`${field} must be at least ${minLength} characters long.`);
+  }
+
+  if (pattern && !new RegExp(pattern).test(trimmed)) {
+    throw new Error(`${field} format is invalid.`);
   }
 
   return trimmed;
@@ -159,8 +163,8 @@ export async function POST(request) {
     const inquiry = {
       reference,
       user_id: user.id,
-      customer_name: requiredString(body.name, 'Name'),
-      customer_phone: requiredString(body.phone, 'Phone'),
+      customer_name: requiredString(body.name, 'Name', 4, '.*[a-zA-Z].*'),
+      customer_phone: requiredString(body.phone, 'Phone', 11, '^(09|\\+639)\\d{9}$'),
       pickup_address: pickupAddress,
       delivery_address: deliveryAddress,
       pickup_lat: Number(pickup.lat),
@@ -174,6 +178,36 @@ export async function POST(request) {
       route_distance_km: body.routeDistance ? Number(body.routeDistance) : null,
       status: 'new',
     };
+
+    if (inquiry.route_distance_km !== null && inquiry.route_distance_km < 1) {
+      return NextResponse.json({ error: 'Pickup and delivery locations are too close. Minimum route distance is 1 km.' }, { status: 400 });
+    }
+
+    // SPAM AND CAP VALIDATION
+    const { data: recentInquiries, error: recentError } = await supabase
+      .from('inquiries')
+      .select('created_at, status')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+    
+    if (recentError) {
+      throw new Error(recentError.message);
+    }
+
+    if (recentInquiries && recentInquiries.length > 0) {
+      const lastInquiryTime = new Date(recentInquiries[0].created_at).getTime();
+      const now = Date.now();
+      const diffMinutes = (now - lastInquiryTime) / (1000 * 60);
+
+      if (diffMinutes < 5) {
+        return NextResponse.json({ error: 'Please wait at least 5 minutes before submitting another inquiry.' }, { status: 429 });
+      }
+
+      const activeCount = recentInquiries.filter(i => i.status === 'new' || i.status === 'processing').length;
+      if (activeCount >= 3) {
+        return NextResponse.json({ error: 'You have reached the maximum of 3 active inquiries. Please wait for admin approval on your existing requests.' }, { status: 429 });
+      }
+    }
 
     const { error: inquiryError } = await supabase.from('inquiries').insert(inquiry);
 

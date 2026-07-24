@@ -1,6 +1,6 @@
 import { ArrowRight, MapPin, PackageCheck, Route, ShieldCheck } from 'lucide-react';
 
-function Hero({ truck, lanes, onInquire, onViewTruck }) {
+function Hero({ truck, lanes, onInquire, onViewTruck, onMyInquiries }) {
   return (
     <section className="hero-section" id="home">
       <div className="hero-copy">
@@ -15,8 +15,13 @@ function Hero({ truck, lanes, onInquire, onViewTruck }) {
             Inquire Delivery
             <ArrowRight size={18} />
           </button>
+          {onMyInquiries && (
+            <button className="secondary-action" type="button" onClick={onMyInquiries} style={{ borderColor: 'var(--green)', color: 'var(--green)' }}>
+              Track My Inquiries
+            </button>
+          )}
           <button className="secondary-action" type="button" onClick={onViewTruck}>
-            View Truck
+            View Trucks
           </button>
         </div>
 

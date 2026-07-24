@@ -69,6 +69,7 @@ function PhilippinesMapPicker({
     pickup: null,
     delivery: null,
   });
+  const searchTimeoutRef = useRef({ pickup: null, delivery: null });
 
   const pickupIcon = useMemo(() => createMarkerIcon('#16a34a'), []);
   const deliveryIcon = useMemo(() => createMarkerIcon('#f97316'), []);
@@ -237,8 +238,8 @@ function PhilippinesMapPicker({
     }));
   };
 
-  const searchPlaces = async (markerType) => {
-    const query = searchState[markerType].query.trim();
+  const searchPlaces = async (markerType, queryOverride) => {
+    const query = (queryOverride !== undefined ? queryOverride : searchState[markerType].query).trim();
 
     if (!query) {
       updateSearchState(markerType, { results: [], status: 'Enter a place, pier, warehouse, city, or province.' });
@@ -261,6 +262,22 @@ function PhilippinesMapPicker({
       });
     } catch (searchError) {
       updateSearchState(markerType, { status: searchError.message, results: [] });
+    }
+  };
+
+  const handleQueryChange = (markerType, value) => {
+    updateSearchState(markerType, { query: value });
+    
+    if (searchTimeoutRef.current[markerType]) {
+      clearTimeout(searchTimeoutRef.current[markerType]);
+    }
+    
+    if (value.trim()) {
+      searchTimeoutRef.current[markerType] = setTimeout(() => {
+        searchPlaces(markerType, value);
+      }, 600);
+    } else {
+      updateSearchState(markerType, { results: [], status: 'Enter a place, pier, warehouse, city, or province.' });
     }
   };
 
@@ -343,10 +360,13 @@ function PhilippinesMapPicker({
           <div className="place-search-row">
             <input
               value={state.query}
-              onChange={(event) => updateSearchState(markerType, { query: event.target.value })}
+              onChange={(event) => handleQueryChange(markerType, event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault();
+                  if (searchTimeoutRef.current[markerType]) {
+                    clearTimeout(searchTimeoutRef.current[markerType]);
+                  }
                   searchPlaces(markerType);
                 }
               }}

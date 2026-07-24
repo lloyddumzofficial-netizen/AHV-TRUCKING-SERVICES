@@ -108,29 +108,7 @@ function ProfileOnboarding({ session, profile, setProfile }) {
   }
 
   if (completed) {
-    return (
-      <section className="profile-panel complete" id="profile">
-        <div className="profile-heading">
-          <UserRound size={22} />
-          <div>
-            <span>Profile complete</span>
-            <h2>{profile.full_name}</h2>
-            <p>You can now send trucking inquiries to AHV.</p>
-          </div>
-        </div>
-
-        <div className="profile-summary">
-          <img src={profile.profile_image_url} alt={profile.full_name} />
-          <div>
-            <strong>{profile.full_name}</strong>
-            <span><Phone size={15} />{profile.phone}</span>
-            <span><MapPin size={15} />{profile.location}</span>
-          </div>
-        </div>
-
-        {status && <p className="profile-status">{status}</p>}
-      </section>
-    );
+    return null;
   }
 
   return (
@@ -164,7 +142,11 @@ function ProfileOnboarding({ session, profile, setProfile }) {
             <input
               value={form.fullName}
               onChange={(event) => updateField('fullName', event.target.value)}
-              placeholder="Your full name"
+              placeholder="Your full name (e.g., Juan Dela Cruz)"
+              minLength={4}
+              maxLength={100}
+              pattern=".*[a-zA-Z].*"
+              title="Full name must contain at least one letter and be at least 4 characters long."
               required
             />
           </label>
@@ -175,7 +157,9 @@ function ProfileOnboarding({ session, profile, setProfile }) {
               type="tel"
               value={form.phone}
               onChange={(event) => updateField('phone', event.target.value)}
-              placeholder="Your active contact number"
+              placeholder="09XXXXXXXXX or +639XXXXXXXXX"
+              pattern="^(09|\+639)\d{9}$"
+              title="Please enter a valid Philippine mobile number (e.g., 09123456789 or +639123456789)"
               required
             />
           </label>
