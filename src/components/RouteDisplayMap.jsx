@@ -3,7 +3,6 @@
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 
-const OSRM_BASE = 'https://router.project-osrm.org/route/v1/driving';
 
 function createMarkerIcon(color, size = 18) {
   return L.divIcon({
@@ -29,11 +28,17 @@ function createTruckIcon() {
 
 async function fetchOsrmRoute(p1, p2) {
   try {
-    const url = `${OSRM_BASE}/${p1.lng},${p1.lat};${p2.lng},${p2.lat}?overview=full&geometries=geojson`;
-    const res = await fetch(url);
+    const params = new URLSearchParams({
+      pickupLat: String(p1.lat),
+      pickupLng: String(p1.lng),
+      deliveryLat: String(p2.lat),
+      deliveryLng: String(p2.lng),
+    });
+    const res = await fetch(`/api/routes/directions?${params.toString()}`);
+    if (!res.ok) return null;
     const data = await res.json();
-    if (data.code === 'Ok' && data.routes?.length > 0) {
-      return data.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+    if (data.route?.coordinates?.length > 0) {
+      return data.route.coordinates;
     }
   } catch {
     // silently fall back to straight line
@@ -41,7 +46,7 @@ async function fetchOsrmRoute(p1, p2) {
   return null;
 }
 
-function RouteDisplayMap({ pickup, delivery, status, driverLat, driverLng, driverLocation, height = '260px' }) {
+function RouteDisplayMap({ pickup, delivery, status, driverLat, driverLng, driverLocation, height = '400px' }) {
   const mapElementRef = useRef(null);
   const mapRef = useRef(null);
 
@@ -176,7 +181,7 @@ function RouteDisplayMap({ pickup, delivery, status, driverLat, driverLng, drive
     'Pending Route';
 
   return (
-    <div style={{ padding: '1rem', background: '#fff', border: '1px solid var(--line)', borderRadius: '12px', marginTop: '1rem' }}>
+    <div style={{ marginTop: '1.5rem', marginBottom: '1rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
         <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--ink)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
           Visual Route Progress
@@ -192,7 +197,7 @@ function RouteDisplayMap({ pickup, delivery, status, driverLat, driverLng, drive
       )}
       <div
         ref={mapElementRef}
-        style={{ width: '100%', height, borderRadius: '8px', overflow: 'hidden', background: 'var(--soft)' }}
+        style={{ width: '100%', height, borderRadius: '12px', overflow: 'hidden', background: 'var(--soft)' }}
       />
     </div>
   );

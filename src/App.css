@@ -3485,3 +3485,557 @@ button:hover:not(:disabled) {
   }
 }
 
+/* ─── ANIMATIONS ──────────────────────────────────── */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinning {
+  animation: spin 0.9s linear infinite;
+}
+
+/* ─── TOAST NOTIFICATIONS ─────────────────────────── */
+.toast-container {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 9999;
+  display: grid;
+  gap: 0.55rem;
+  max-width: min(380px, calc(100vw - 2rem));
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  border-left-color: var(--ink);
+  box-shadow: 0 8px 28px rgba(17, 24, 39, 0.14);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink);
+  animation: slide-in-right 0.28s ease both;
+}
+
+.toast svg {
+  flex: 0 0 auto;
+  margin-top: 0.08rem;
+}
+
+.toast span {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.45;
+  text-transform: none;
+  font-size: 0.88rem;
+}
+
+.toast-success {
+  border-left-color: var(--green);
+}
+
+.toast-success svg {
+  color: var(--green);
+}
+
+.toast-error {
+  border-left-color: #dc2626;
+}
+
+.toast-error svg {
+  color: #dc2626;
+}
+
+.toast-info {
+  border-left-color: #2563eb;
+}
+
+.toast-close {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  margin-top: -0.1rem;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.toast-close:hover {
+  background: var(--soft);
+}
+
+/* ─── HOW IT WORKS STRIP ──────────────────────────── */
+.how-it-works {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 2rem;
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--line);
+  animation: fade-in-up 0.5s ease both;
+}
+
+.how-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+}
+
+.how-step-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  background: var(--soft-green);
+  border: 1px solid rgba(22, 163, 74, 0.3);
+  color: var(--green-dark);
+}
+
+.how-step-num {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  background: var(--green);
+  color: #fff !important;
+  font-size: 0.65rem !important;
+  font-weight: 950;
+  border-radius: 50%;
+  border: 2px solid #fff;
+}
+
+.how-step-body {
+  display: grid;
+  gap: 0.2rem;
+  padding-top: 0.35rem;
+}
+
+.how-step-body strong {
+  color: var(--ink);
+  font-size: 0.9rem;
+  line-height: 1.2;
+}
+
+.how-step-body p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+@media (min-width: 700px) {
+  .how-it-works {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+  }
+
+  .how-step {
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+}
+
+/* ─── STEP INDICATOR V2 (icon pills) ──────────────── */
+.step-indicator-v2 {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0;
+  padding: 1rem 0 0.25rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.step-indicator-v2::-webkit-scrollbar {
+  display: none;
+}
+
+.step-pip {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1;
+  min-width: 52px;
+}
+
+.step-connector {
+  position: absolute;
+  top: 17px;
+  left: calc(-50% + 17px);
+  right: calc(50% + 17px);
+  height: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.step-connector-fill {
+  height: 100%;
+  background: var(--green);
+  transition: width 0.4s ease;
+}
+
+.step-pip-circle {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  background: var(--soft);
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  color: var(--muted);
+  transition: background 0.3s, border-color 0.3s, color 0.3s;
+  z-index: 1;
+}
+
+.step-pip.active .step-pip-circle {
+  background: var(--soft-green);
+  border-color: var(--green);
+  color: var(--green-dark);
+}
+
+.step-pip.current .step-pip-circle {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.18);
+}
+
+.step-pip-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  background: var(--orange);
+  color: #fff !important;
+  font-size: 0.6rem !important;
+  font-weight: 950;
+  border-radius: 9px;
+  border: 2px solid #fff;
+  text-transform: none;
+}
+
+.step-pip-label {
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: center;
+  transition: color 0.3s;
+}
+
+.step-pip.active .step-pip-label {
+  color: var(--green-dark);
+}
+
+.step-pip.current .step-pip-label {
+  color: var(--ink);
+  font-weight: 950;
+}
+
+/* ─── DISTANCE WARNING ────────────────────────────── */
+.distance-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.8rem;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  font-size: 0.88rem;
+  font-weight: 600;
+  animation: fade-in-up 0.2s ease both;
+}
+
+.distance-warning svg {
+  flex: 0 0 auto;
+  margin-top: 0.1rem;
+  color: #d97706;
+}
+
+/* ─── REVIEW IMAGE THUMBNAILS ─────────────────────── */
+.review-images-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.45rem;
+}
+
+.review-image-thumb {
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.review-image-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ─── COPY REFERENCE BUTTON ───────────────────────── */
+.customer-inquiry-ref {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.copy-ref-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.22rem 0.55rem;
+  color: var(--muted);
+  background: #fff;
+  border: 1px solid var(--line);
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+  white-space: nowrap;
+}
+
+.copy-ref-btn:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.copy-ref-btn.copied {
+  color: var(--green-dark);
+  background: var(--soft-green);
+  border-color: rgba(22, 163, 74, 0.4);
+}
+
+/* ─── EMPTY STATE CTA ─────────────────────────────── */
+.customer-empty-state-block {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.empty-state-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0.78rem 1.5rem;
+  color: #fff;
+  background: var(--green);
+  border: 1px solid var(--green);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  animation: fade-in-up 0.3s ease both;
+}
+
+.empty-state-cta:hover {
+  opacity: 0.9;
+}
+
+/* ─── INQUIRIES REFRESH BUTTON ────────────────────── */
+.inquiries-refresh-btn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-left: auto;
+  color: var(--muted);
+  background: #fff;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  font: inherit;
+  flex: 0 0 auto;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.inquiries-refresh-btn:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.inquiries-refresh-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ─── FOOTER ENRICHED ─────────────────────────────── */
+.footer-badges {
+  display: grid;
+  gap: 0.75rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.footer-badge {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  color: #d1d5db;
+}
+
+.footer-badge svg {
+  flex: 0 0 auto;
+  color: var(--green);
+  margin-top: 0.1rem;
+}
+
+.footer-badge div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.footer-badge strong {
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.footer-badge span {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(209, 213, 219, 0.75);
+}
+
+.footer-main {
+  display: grid;
+  gap: 1.5rem;
+  padding-top: 1.5rem;
+}
+
+.footer-brand-block {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.footer-lanes-block {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.footer-lanes-title {
+  margin: 0;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.footer-lanes-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.footer-lanes-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: rgba(209, 213, 219, 0.85);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.footer-lanes-list li svg {
+  color: var(--green);
+  flex: 0 0 auto;
+}
+
+.footer-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: space-between;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(209, 213, 219, 0.6);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+@media (min-width: 700px) {
+  .footer-badges {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .footer-main {
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+  }
+}
+
+/* ─── ADDRESS CONFIRMATION STRIP ─────────────────── */
+.address-confirm-grid {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.address-confirm-item {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.65rem 0.8rem;
+  border-left: 3px solid var(--line);
+}
+
+.address-confirm-item.pickup {
+  border-left-color: var(--green);
+  background: var(--soft-green);
+}
+
+.address-confirm-item.delivery {
+  border-left-color: var(--orange);
+  background: #fff7ed;
+}
+
+.address-confirm-item span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.address-confirm-item strong {
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}

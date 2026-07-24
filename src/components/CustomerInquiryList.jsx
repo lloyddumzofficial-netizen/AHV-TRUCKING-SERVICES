@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { ClipboardList, Loader2, MapPin, Route, Save, Search, X } from 'lucide-react';
+import { Check, ClipboardList, ClipboardCopy, Loader2, MapPin, RefreshCw, Route, Save, Search, X } from 'lucide-react';
 import { INQUIRY_STATUS_HELP, INQUIRY_STATUS_LABELS } from '../data/inquiryStatus.js';
 import { getInquiries, updateInquiryLocations } from '../lib/inquiries/api.js';
 import { calculateDistanceKm } from '../lib/inquiries/distance.js';
@@ -158,12 +158,35 @@ function CustomerInquiryCard({ inquiry, session, showTimeline = false, onSaved }
   const deliveryPoint = { lat: Number(inquiry.delivery_lat), lng: Number(inquiry.delivery_lng) };
   const currentStepIndex = visibleSteps.includes(inquiryStatus) ? visibleSteps.indexOf(inquiryStatus) : 0;
   const [isCorrectingLocation, setIsCorrectingLocation] = useState(false);
+  const [copied, setCopied] = useState(false);
   const canCorrectLocation = showTimeline && CORRECTABLE_STATUSES.includes(inquiryStatus);
+
+  const copyReference = async () => {
+    try {
+      await navigator.clipboard.writeText(inquiry.reference);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // fallback — select text
+    }
+  };
 
   return (
     <article className="recent-card customer-inquiry-card">
       <div className="customer-inquiry-head">
-        <span>{inquiry.reference}</span>
+        <div className="customer-inquiry-ref">
+          <span>{inquiry.reference}</span>
+          <button
+            type="button"
+            className={`copy-ref-btn ${copied ? 'copied' : ''}`}
+            onClick={copyReference}
+            title={copied ? 'Copied!' : 'Copy reference number'}
+            aria-label="Copy reference number"
+          >
+            {copied ? <Check size={13} /> : <ClipboardCopy size={13} />}
+            <span>{copied ? 'Copied' : 'Copy'}</span>
+          </button>
+        </div>
         <strong className={getCustomerStatusClass(inquiryStatus)}>
           {INQUIRY_STATUS_LABELS[inquiryStatus] || 'Pending'}
         </strong>
@@ -259,6 +282,7 @@ function CustomerInquiryList({
   limit = 20,
   reference = '',
   compact = false,
+  onStartInquiry,
 }) {
   const [inquiries, setInquiries] = useState([]);
   const [search, setSearch] = useState(reference || '');
@@ -362,6 +386,18 @@ function CustomerInquiryList({
           <span>{eyebrow}</span>
           <h3>{heading}</h3>
         </div>
+        {!compact && (
+          <button
+            type="button"
+            className="inquiries-refresh-btn"
+            onClick={loadInquiries}
+            disabled={isLoading}
+            title="Refresh inquiries"
+            aria-label="Refresh inquiries"
+          >
+            <RefreshCw size={15} className={isLoading ? 'spinning' : ''} />
+          </button>
+        )}
       </div>
 
       {!reference && !compact && (
@@ -379,7 +415,14 @@ function CustomerInquiryList({
       )}
 
       {visibleInquiries.length === 0 && !isLoading ? (
-        <p className="customer-empty-state">No inquiries found yet.</p>
+        <div className="customer-empty-state-block">
+          <p className="customer-empty-state">No inquiries found yet.</p>
+          {onStartInquiry && (
+            <button type="button" className="empty-state-cta" onClick={onStartInquiry}>
+              Start your first inquiry
+            </button>
+          )}
+        </div>
       ) : (
         <div className="recent-list">
           {visibleInquiries.map((inquiry) => (

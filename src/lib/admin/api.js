@@ -19,6 +19,7 @@ export async function getAdminInquiries(accessToken, filters = {}) {
 
   const response = await fetch(`/api/admin/inquiries?${params.toString()}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
+    cache: 'no-store',
   });
   const payload = await response.json();
 

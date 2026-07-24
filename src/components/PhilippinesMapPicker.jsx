@@ -431,6 +431,15 @@ function PhilippinesMapPicker({
         </span>
       </div>
 
+      <div className="map-frame">
+        <div
+          ref={mapElementRef}
+          aria-label="Philippine pickup and delivery map"
+          className="philippines-map"
+          role="application"
+        />
+      </div>
+
       <div className="map-toolbar">
         <button
           className={activeMarker === 'pickup' ? 'marker-mode active pickup' : 'marker-mode'}
@@ -465,15 +474,6 @@ function PhilippinesMapPicker({
       <div className="place-search-grid">
         {renderPlaceSearch('pickup', 'Pickup place search', 'e.g. Manila International Container Port')}
         {renderPlaceSearch('delivery', 'Delivery place search', 'e.g. Davao warehouse, Cagayan de Oro pier')}
-      </div>
-
-      <div className="map-frame">
-        <div
-          ref={mapElementRef}
-          aria-label="Philippine pickup and delivery map"
-          className="philippines-map"
-          role="application"
-        />
       </div>
 
       <div className="coordinate-grid">

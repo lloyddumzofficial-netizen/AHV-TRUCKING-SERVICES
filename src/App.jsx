@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import { Truck, Menu, Phone, MessageCircle } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { CheckCircle2, Truck, Menu, Phone, MessageCircle, X, AlertTriangle } from 'lucide-react';
 import Hero from './components/Hero.jsx';
 import TruckShowcase from './components/TruckShowcase.jsx';
 import InquiryForm from './components/InquiryForm.jsx';
@@ -45,11 +45,20 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(undefined);
   const [profileStatus, setProfileStatus] = useState('');
+  const [toasts, setToasts] = useState([]);
   const [clientView, setClientView] = useState(
     Object.values(CLIENT_VIEWS).includes(initialView) ? initialView : CLIENT_VIEWS.home,
   );
   const isAdmin = profile?.role === 'admin';
   const isProfileLoading = Boolean(authReady && session && profile === undefined);
+
+  const addToast = useCallback((message, type = 'info') => {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4500);
+  }, []);
+
+  const removeToast = (id) => setToasts((prev) => prev.filter((t) => t.id !== id));
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -200,6 +209,21 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
 
   return (
     <div className="app-shell">
+      {/* Toast notifications */}
+      {toasts.length > 0 && (
+        <div className="toast-container" aria-live="polite">
+          {toasts.map(({ id, message, type }) => (
+            <div key={id} className={`toast toast-${type}`}>
+              {type === 'success' && <CheckCircle2 size={16} />}
+              {type === 'error' && <AlertTriangle size={16} />}
+              <span>{message}</span>
+              <button type="button" className="toast-close" onClick={() => removeToast(id)} aria-label="Dismiss">
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       <header className="site-header">
         <button className="brand brand-button" type="button" aria-label="AHV Trucking home" onClick={() => (isAdmin ? returnToTop() : navigateClient(CLIENT_VIEWS.home))}>
           <img src="/SVG/HEADER LOGO.svg" alt="AHV Logo" className="brand-logo-img" />
@@ -360,7 +384,12 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
                   <p>See live inquiry status, quote updates, pickup schedule, and delivery progress from AHV admin.</p>
                 </div>
                 <AuthPanel session={session} setSession={setSession} />
-                <CustomerInquiryList session={session} heading="All saved inquiries" eyebrow="My requests" />
+                <CustomerInquiryList
+                  session={session}
+                  heading="All saved inquiries"
+                  eyebrow="My requests"
+                  onStartInquiry={() => navigateClient(CLIENT_VIEWS.inquire)}
+                />
               </section>
             )}
 
@@ -385,7 +414,11 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
       </main>
 
       {!isAdmin && !adminOnly && (
-        <button className={clientView === CLIENT_VIEWS.inquire || inquiry ? 'floating-inquire hidden' : 'floating-inquire'} type="button" onClick={() => navigateClient(CLIENT_VIEWS.inquire)}>
+        <button
+          className={!session || clientView === CLIENT_VIEWS.inquire || inquiry ? 'floating-inquire hidden' : 'floating-inquire'}
+          type="button"
+          onClick={() => navigateClient(CLIENT_VIEWS.inquire)}
+        >
           <MessageCircle size={18} />
           Inquire
         </button>

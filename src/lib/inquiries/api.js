@@ -12,6 +12,7 @@ export async function getInquiries(accessToken, filters = {}) {
   const queryString = params.toString();
   const response = await fetch(`/api/inquiries${queryString ? `?${queryString}` : ''}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
+    cache: 'no-store',
   });
   const payload = await response.json();
 

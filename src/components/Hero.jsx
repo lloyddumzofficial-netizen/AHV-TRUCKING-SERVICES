@@ -1,4 +1,25 @@
-import { ArrowRight, MapPin, PackageCheck, Route, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Camera, CheckCircle2, MapPin, PackageCheck, Route, ShieldCheck, UserRound } from 'lucide-react';
+
+const HOW_IT_WORKS = [
+  {
+    step: 1,
+    icon: UserRound,
+    title: 'Sign in & set up profile',
+    desc: 'Create a free account and complete your profile with your name, phone, and photo for AHV admin verification.',
+  },
+  {
+    step: 2,
+    icon: MapPin,
+    title: 'Submit pickup & cargo details',
+    desc: 'Pin pickup and delivery locations on the PH map, describe your cargo, and attach parcel photos.',
+  },
+  {
+    step: 3,
+    icon: CheckCircle2,
+    title: 'AHV reviews & sends quote',
+    desc: 'Our dispatchers review your route, confirm truck fit, and send you a price quote with pickup schedule.',
+  },
+];
 
 function Hero({ truck, lanes, onInquire, onViewTruck, onMyInquiries }) {
   return (
@@ -31,6 +52,22 @@ function Hero({ truck, lanes, onInquire, onViewTruck, onMyInquiries }) {
               <Route size={14} />
               {lane}
             </span>
+          ))}
+        </div>
+
+        {/* How It Works strip */}
+        <div className="how-it-works" aria-label="How AHV inquiry works">
+          {HOW_IT_WORKS.map(({ step, icon: Icon, title, desc }) => (
+            <div key={step} className="how-step">
+              <div className="how-step-icon">
+                <Icon size={18} />
+                <span className="how-step-num">{step}</span>
+              </div>
+              <div className="how-step-body">
+                <strong>{title}</strong>
+                <p>{desc}</p>
+              </div>
+            </div>
           ))}
         </div>
       </div>

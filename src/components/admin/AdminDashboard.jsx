@@ -111,6 +111,7 @@ function AdminDashboard({ session, profile, setSession }) {
   const [newInquiryNotice, setNewInquiryNotice] = useState('');
   const [pendingDeleteReference, setPendingDeleteReference] = useState('');
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [isSavingLocation, setIsSavingLocation] = useState(false);
   const [locationQuery, setLocationQuery] = useState('');
   const [locationSuggestions, setLocationSuggestions] = useState([]);
   const [locationSearching, setLocationSearching] = useState(false);
@@ -118,6 +119,9 @@ function AdminDashboard({ session, profile, setSession }) {
   const isAdmin = profile?.role === 'admin';
   const supabase = getSupabaseBrowserClient();
   const knownReferencesRef = useRef(new Set());
+  // isDirtyRef: true when admin has unsaved changes or is mid-save.
+  // Prevents background syncs from wiping the form state.
+  const isDirtyRef = useRef(false);
 
   const selectedInquiry = useMemo(
     () => payload.inquiries.find((inquiry) => inquiry.reference === selectedReference) || null,
@@ -235,16 +239,58 @@ function AdminDashboard({ session, profile, setSession }) {
   }, [isAdmin, loadDashboard, session?.access_token, supabase]);
 
   useEffect(() => {
+    // Skip form reset while dirty (unsaved changes) OR while a location save is in flight.
+    // This prevents realtime events triggered by our own save from wiping the driver location.
+    if (isDirtyRef.current) {
+      return;
+    }
     setForm(createFormState(selectedInquiry));
     setPendingDeleteReference('');
   }, [selectedInquiry]);
 
+  useEffect(() => {
+    const q = locationQuery;
+    
+    // Don't search if too short or if it matches the selected label
+    if (q.trim().length < 3 || selectedLocation?.label === q) {
+      if (!selectedLocation && locationSuggestions.length > 0) {
+        setLocationSuggestions([]);
+      }
+      return;
+    }
+
+    setLocationSearching(true);
+    
+    // 800ms debounce to comply with Nominatim's 1-request-per-second limit and avoid 403 Forbidden
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ', Philippines')}&format=json&limit=6&addressdetails=1`,
+          { headers: { 'Accept-Language': 'en' } }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setLocationSuggestions(data);
+        } else {
+          setLocationSuggestions([]);
+        }
+      } catch {
+        setLocationSuggestions([]);
+      } finally {
+        setLocationSearching(false);
+      }
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [locationQuery, selectedLocation]);
+
   const updateForm = (field, value) => {
+    isDirtyRef.current = true;
     setForm((current) => ({ ...current, [field]: value }));
   };
 
   const saveInquiry = async (event) => {
-    event.preventDefault();
+    if (event) event.preventDefault();
 
     if (!selectedInquiry || !session?.access_token) {
       return;
@@ -255,6 +301,7 @@ function AdminDashboard({ session, profile, setSession }) {
 
     try {
       await updateAdminInquiry(session.access_token, selectedInquiry.reference, form);
+      isDirtyRef.current = false;
       await loadDashboard({ quiet: true });
       setStatus('Inquiry updated.');
     } catch (saveError) {
@@ -765,21 +812,9 @@ function AdminDashboard({ session, profile, setSession }) {
                 <input
                   autoFocus
                   value={locationQuery}
-                  onChange={async (e) => {
-                    const q = e.target.value;
-                    setLocationQuery(q);
-                    setSelectedLocation(null);
-                    if (q.trim().length < 3) { setLocationSuggestions([]); return; }
-                    setLocationSearching(true);
-                    try {
-                      const res = await fetch(
-                        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ', Philippines')}&format=json&limit=6&addressdetails=1`,
-                        { headers: { 'Accept-Language': 'en' } }
-                      );
-                      const data = await res.json();
-                      setLocationSuggestions(data);
-                    } catch { setLocationSuggestions([]); }
-                    setLocationSearching(false);
+                  onChange={(e) => {
+                    setLocationQuery(e.target.value);
+                    if (selectedLocation) setSelectedLocation(null);
                   }}
                   placeholder="Type a city, municipality, or barangay..."
                   style={{ width: '100%', padding: '0.75rem 0.75rem 0.75rem 2.5rem', borderRadius: '12px', border: '1.5px solid var(--line)', fontSize: '0.95rem', boxSizing: 'border-box', outline: 'none' }}
@@ -850,12 +885,51 @@ function AdminDashboard({ session, profile, setSession }) {
               <button
                 type="button"
                 disabled={!selectedLocation}
-                onClick={() => {
-                  if (!selectedLocation) return;
-                  updateForm('driverLocation', selectedLocation.label);
-                  updateForm('driverLat', selectedLocation.lat);
-                  updateForm('driverLng', selectedLocation.lng);
+                onClick={async () => {
+                  if (!selectedLocation || !selectedInquiry || !session?.access_token) return;
+
+                  const nextForm = {
+                    ...form,
+                    driverLocation: selectedLocation.label,
+                    driverLat: selectedLocation.lat,
+                    driverLng: selectedLocation.lng,
+                  };
+
+                  // Keep isDirty true — block all background resets until we are done
+                  isDirtyRef.current = true;
+                  setIsSavingLocation(true);
+
+                  // Update local form immediately so the UI doesn't flicker
+                  setForm(nextForm);
                   setShowLocationModal(false);
+
+                  try {
+                    const result = await updateAdminInquiry(
+                      session.access_token,
+                      selectedInquiry.reference,
+                      nextForm,
+                    );
+
+                    // Patch the local payload directly with the server's returned inquiry.
+                    // This avoids calling loadDashboard which triggers a realtime chain
+                    // that could fire another form reset before isDirtyRef is cleared.
+                    if (result?.inquiry) {
+                      setPayload((prev) => ({
+                        ...prev,
+                        inquiries: prev.inquiries.map((inq) =>
+                          inq.reference === selectedInquiry.reference ? { ...inq, ...result.inquiry } : inq
+                        ),
+                      }));
+                    }
+
+                    setStatus('Driver location saved.');
+                  } catch (saveErr) {
+                    setStatus(`Could not save driver location: ${saveErr.message}`);
+                  } finally {
+                    // Clear dirty LAST — after all state updates are queued
+                    isDirtyRef.current = false;
+                    setIsSavingLocation(false);
+                  }
                 }}
                 style={{
                   flex: 2,
@@ -865,13 +939,14 @@ function AdminDashboard({ session, profile, setSession }) {
                   background: selectedLocation ? 'linear-gradient(135deg, #16a34a, #15803d)' : '#e2e8f0',
                   color: selectedLocation ? '#fff' : '#94a3b8',
                   fontWeight: 800,
-                  cursor: selectedLocation ? 'pointer' : 'not-allowed',
+                  cursor: (selectedLocation && !isSavingLocation) ? 'pointer' : 'not-allowed',
                   fontSize: '0.9rem',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '0.5rem',
                   transition: 'background 0.2s',
+                  opacity: isSavingLocation ? 0.7 : 1,
                 }}
               >
                 <MapPin size={15} />

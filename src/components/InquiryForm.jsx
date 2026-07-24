@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { CheckCircle2, ImagePlus, LockKeyhole, Package, Send, Trash2, UserRound, Loader2, Camera } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ImagePlus, LockKeyhole, MapPin, Package, Send, Trash2, UserRound, Loader2, Camera } from 'lucide-react';
 import CustomerInquiryList from './CustomerInquiryList.jsx';
 import { CARGO_OPTIONS } from '../data/cargoOptions.js';
 import { createInquiry, uploadCargoImages } from '../lib/inquiries/api.js';
@@ -28,6 +28,14 @@ const INITIAL_FORM = {
   notes: '',
 };
 
+const STEP_META = [
+  { step: 1, label: 'Contact', icon: UserRound },
+  { step: 2, label: 'Locations', icon: MapPin },
+  { step: 3, label: 'Cargo', icon: Package },
+  { step: 4, label: 'Photos', icon: Camera },
+  { step: 5, label: 'Review', icon: CheckCircle2 },
+];
+
 function InquiryForm({ onInquirySubmit, submittedInquiry, session, setSession, profile, onViewMyInquiries }) {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [form, setForm] = useState(INITIAL_FORM);
@@ -40,13 +48,36 @@ function InquiryForm({ onInquirySubmit, submittedInquiry, session, setSession, p
   const [currentStep, setCurrentStep] = useState(1);
   const profileComplete = isProfileComplete(profile);
   const routeDistance = useMemo(() => calculateDistanceKm(pickup, delivery), [delivery, pickup]);
+  const distanceTooClose = routeDistance !== null && routeDistance < 1;
+
+  // Pre-fill contact from profile when user signs in
+  useEffect(() => {
+    if (profile?.full_name || profile?.phone) {
+      setForm((prev) => ({
+        ...prev,
+        name: prev.name || profile.full_name || '',
+        phone: prev.phone || profile.phone || '',
+      }));
+    }
+  }, [profile?.full_name, profile?.phone]);
 
   const canProceedToStep2 = form.name.trim() !== '' && form.phone.trim() !== '';
-  const canProceedToStep3 = form.pickupAddress.trim() !== '' && form.deliveryAddress.trim() !== '' && pickup && delivery;
+  const canProceedToStep3 = form.pickupAddress.trim() !== '' && form.deliveryAddress.trim() !== '' && pickup && delivery && !distanceTooClose;
   const canProceedToStep4 = form.cargoType !== '' && form.quantity !== '';
 
-  const nextStep = () => setCurrentStep((prev) => Math.min(prev + 1, 4));
-  const prevStep = () => setCurrentStep((prev) => Math.max(prev - 1, 1));
+  const nextStep = () => {
+    setCurrentStep((prev) => Math.min(prev + 1, 5));
+    setTimeout(() => {
+      document.getElementById('inquiry')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  };
+  
+  const prevStep = () => {
+    setCurrentStep((prev) => Math.max(prev - 1, 1));
+    setTimeout(() => {
+      document.getElementById('inquiry')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  };
 
   const canSubmit = useMemo(
     () => Boolean(
@@ -180,21 +211,24 @@ function InquiryForm({ onInquirySubmit, submittedInquiry, session, setSession, p
 
       {/* Progress Indicator */}
       <div className="step-progress">
-        <div className="step-indicator">
-          <span className={currentStep >= 1 ? 'active' : ''}>1</span>
-          <div className="step-line" />
-          <span className={currentStep >= 2 ? 'active' : ''}>2</span>
-          <div className="step-line" />
-          <span className={currentStep >= 3 ? 'active' : ''}>3</span>
-          <div className="step-line" />
-          <span className={currentStep >= 4 ? 'active' : ''}>4</span>
+        <div className="step-indicator-v2">
+          {STEP_META.map(({ step, label, icon: Icon }, idx) => (
+            <div key={step} className={`step-pip ${currentStep >= step ? 'active' : ''} ${currentStep === step ? 'current' : ''}`}>
+              {idx > 0 && (
+                <div className="step-connector">
+                  <div className="step-connector-fill" style={{ width: currentStep > step - 1 ? '100%' : '0%' }} />
+                </div>
+              )}
+              <div className="step-pip-circle">
+                <Icon size={14} />
+                {step === 4 && images.length > 0 && (
+                  <span className="step-pip-badge">{images.length}</span>
+                )}
+              </div>
+              <span className="step-pip-label">{label}</span>
+            </div>
+          ))}
         </div>
-        <p className="step-label">
-          {currentStep === 1 && 'Step 1: Contact details'}
-          {currentStep === 2 && 'Step 2: Locations'}
-          {currentStep === 3 && 'Step 3: Cargo details'}
-          {currentStep === 4 && 'Step 4: Parcel images'}
-        </p>
       </div>
 
       <form className="inquiry-form" onSubmit={handleSubmit}>
@@ -248,6 +282,13 @@ function InquiryForm({ onInquirySubmit, submittedInquiry, session, setSession, p
               </div>
             </div>
 
+            {distanceTooClose && pickup && delivery && (
+              <div className="distance-warning">
+                <AlertTriangle size={16} />
+                <span>Pickup and delivery are too close (min. 1 km). Please set locations further apart.</span>
+              </div>
+            )}
+
             <PhilippinesMapPicker
               pickup={pickup}
               delivery={delivery}
@@ -260,26 +301,22 @@ function InquiryForm({ onInquirySubmit, submittedInquiry, session, setSession, p
               setDeliveryAddress={(address) => updateField('deliveryAddress', address)}
             />
 
-            <div className="field-grid">
-              <label>
-                Pickup address
-                <input
-                  value={form.pickupAddress}
-                  onChange={(event) => updateField('pickupAddress', event.target.value)}
-                  placeholder="Pickup address or port/warehouse"
-                  required
-                />
-              </label>
-              <label>
-                Delivery address
-                <input
-                  value={form.deliveryAddress}
-                  onChange={(event) => updateField('deliveryAddress', event.target.value)}
-                  placeholder="Delivery address or destination hub"
-                  required
-                />
-              </label>
-            </div>
+            {(form.pickupAddress || form.deliveryAddress) && (
+              <div className="address-confirm-grid">
+                {form.pickupAddress && (
+                  <div className="address-confirm-item pickup">
+                    <span>Pickup</span>
+                    <strong>{form.pickupAddress}</strong>
+                  </div>
+                )}
+                {form.deliveryAddress && (
+                  <div className="address-confirm-item delivery">
+                    <span>Delivery</span>
+                    <strong>{form.deliveryAddress}</strong>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
         )}
 
@@ -378,28 +415,75 @@ function InquiryForm({ onInquirySubmit, submittedInquiry, session, setSession, p
           </section>
         )}
 
+        {currentStep === 5 && (
+          <section className="form-step">
+            <div className="step-title">
+              <CheckCircle2 size={20} />
+              <div>
+                <span>Step 5</span>
+                <h3>Review your inquiry</h3>
+              </div>
+            </div>
+
+            <div style={{ background: 'var(--soft)', padding: '1.5rem', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div>
+                <h4 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.25rem' }}>Contact</h4>
+                <p style={{ margin: 0, fontWeight: 600 }}>{form.name} • {form.phone}</p>
+              </div>
+              
+              <div>
+                <h4 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.25rem' }}>Route</h4>
+                <p style={{ margin: 0, fontWeight: 600 }}>From: {form.pickupAddress}</p>
+                <p style={{ margin: '0.25rem 0 0', fontWeight: 600 }}>To: {form.deliveryAddress}</p>
+                <p style={{ margin: '0.25rem 0 0', color: 'var(--green)', fontSize: '0.85rem', fontWeight: 700 }}>Est. distance: {routeDistance ? `${routeDistance.toLocaleString()} km` : 'Calculating...'}</p>
+              </div>
+
+              <div>
+                <h4 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.25rem' }}>Cargo</h4>
+                <p style={{ margin: 0, fontWeight: 600 }}>{form.quantity}x {form.cargoType} {form.weight ? `(${form.weight} kg)` : ''}</p>
+                {form.notes && <p style={{ margin: '0.25rem 0 0', fontStyle: 'italic', fontSize: '0.9rem' }}>"{form.notes}"</p>}
+              </div>
+
+              <div>
+                <h4 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.5rem' }}>Attached Photos</h4>
+                <p style={{ margin: '0 0 0.75rem', fontWeight: 600 }}>{images.length} {images.length === 1 ? 'photo' : 'photos'} attached</p>
+                {images.length > 0 && (
+                  <div className="review-images-grid">
+                    {images.map((image) => (
+                      <div key={image.id} className="review-image-thumb">
+                        <img src={image.url} alt={image.name} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+
         <div className="step-nav">
           {currentStep > 1 && (
             <button type="button" className="step-nav-button back" onClick={prevStep}>
               Back
             </button>
           )}
-          {currentStep < 4 ? (
+          {currentStep < 5 ? (
             <button 
               type="button" 
               className="step-nav-button next" 
               onClick={nextStep}
               disabled={
                 (currentStep === 1 && !canProceedToStep2) ||
-                (currentStep === 2 && !canProceedToStep3) ||
-                (currentStep === 3 && !canProceedToStep4)
+                (currentStep === 2 && (!canProceedToStep3 || distanceTooClose)) ||
+                (currentStep === 3 && !canProceedToStep4) ||
+                (currentStep === 4 && images.length === 0)
               }
-              style={{ marginLeft: 'auto', padding: '0.85rem 2rem', fontSize: '1rem', borderRadius: '12px', background: 'var(--ink)', color: '#fff', border: 'none', fontWeight: 'bold' }}
+              style={{ marginLeft: 'auto', padding: '0.85rem 2rem', fontSize: '1rem', borderRadius: '12px', background: 'var(--ink)', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}
             >
               Continue
             </button>
           ) : (
-            <button type="submit" className="step-nav-button next submit-btn" disabled={!canSubmit || isSubmitting} style={{ marginLeft: 'auto', padding: '0.85rem 2.5rem', fontSize: '1.1rem', borderRadius: '12px', background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', color: '#fff', boxShadow: '0 8px 20px -8px rgba(22,163,74,0.6)', border: 'none', display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: 'bold' }}>
+            <button type="submit" className="step-nav-button next submit-btn" disabled={!canSubmit || isSubmitting} style={{ marginLeft: 'auto', padding: '0.85rem 2.5rem', fontSize: '1.1rem', borderRadius: '12px', background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', color: '#fff', boxShadow: '0 8px 20px -8px rgba(22,163,74,0.6)', border: 'none', display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="spinner" size={20} />
