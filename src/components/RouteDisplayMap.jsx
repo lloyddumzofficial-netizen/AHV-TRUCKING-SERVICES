@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
+import { LocateFixed } from 'lucide-react';
 import { getSupabaseBrowserClient } from '../lib/supabase/client.js';
 
 
@@ -17,14 +18,14 @@ function createMarkerIcon(color, size = 18) {
 function createTruckIcon(isLive = false) {
   return L.divIcon({
     className: '',
-    html: `<div style="position:relative;background:${isLive ? '#16a34a' : '#111827'};color:white;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 20px rgba(0,0,0,0.28);border:3px solid white;">
-      ${isLive ? '<span style="position:absolute;inset:-8px;border-radius:50%;border:2px solid rgba(22,163,74,.35);animation:pulseGps 1.7s infinite;"></span>' : ''}
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    html: `<div style="position:relative;background:${isLive ? '#16a34a' : '#111827'};color:white;width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(0,0,0,0.35);border:3px solid white; transition: all 0.3s ease;">
+      ${isLive ? '<span style="position:absolute;inset:-10px;border-radius:50%;border:2px solid rgba(22,163,74,.4);animation:pulseGps 1.5s infinite;"></span>' : ''}
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
       </svg>
     </div>`,
-    iconSize: [38, 38],
-    iconAnchor: [19, 19],
+    iconSize: [42, 42],
+    iconAnchor: [21, 21],
   });
 }
 
@@ -73,6 +74,8 @@ function RouteDisplayMap({
   const mapElementRef = useRef(null);
   const mapRef = useRef(null);
   const truckMarkerRef = useRef(null);
+  const routeLayersRef = useRef([]);
+  const routePointsRef = useRef(null);
 
   // Local state to hold live driver coords if updated via realtime
   const [liveDriverLat, setLiveDriverLat] = useState(driverLat);
@@ -85,6 +88,8 @@ function RouteDisplayMap({
     updatedAt: driverUpdatedAt,
     active: driverTrackingActive,
   });
+
+  const [isAutoTracking, setIsAutoTracking] = useState(true);
 
   // Sync props to local state initially or when they change externally
   useEffect(() => {
@@ -133,126 +138,138 @@ function RouteDisplayMap({
     };
   }, [inquiryReference]);
 
+  // 1. Map Initialization and Static Route
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
     let isMounted = true;
 
-    async function renderMap() {
-      if (!mapRef.current && mapElementRef.current) {
-        mapRef.current = L.map(mapElementRef.current, {
-          zoomControl: true,
-          dragging: true,
-          touchZoom: true,
-          doubleClickZoom: true,
-          scrollWheelZoom: false,
-          attributionControl: false,
-        });
-
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-          maxZoom: 18,
-        }).addTo(mapRef.current);
-      }
-
-      const map = mapRef.current;
-
-      // Clear all previous layers
-      map.eachLayer((layer) => {
-        if (layer instanceof L.Marker || layer instanceof L.Polyline || layer instanceof L.GeoJSON) {
-          map.removeLayer(layer);
-        }
+    if (!mapRef.current && mapElementRef.current) {
+      mapRef.current = L.map(mapElementRef.current, {
+        zoomControl: true,
+        dragging: true,
+        touchZoom: true,
+        doubleClickZoom: true,
+        scrollWheelZoom: false,
+        attributionControl: false,
       });
-      truckMarkerRef.current = null;
 
-      if (!pickup?.lat || !pickup?.lng || !delivery?.lat || !delivery?.lng) return;
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        maxZoom: 18,
+      }).addTo(mapRef.current);
 
-      const pLatLng = [pickup.lat, pickup.lng];
-      const dLatLng = [delivery.lat, delivery.lng];
+      // Disable auto-tracking on manual map interaction
+      mapRef.current.on('dragstart', () => setIsAutoTracking(false));
+      mapRef.current.on('wheel', () => setIsAutoTracking(false));
+      mapRef.current.on('touchstart', () => setIsAutoTracking(false));
+    }
 
-      // Pickup marker (green)
-      L.marker(pLatLng, { icon: createMarkerIcon('#16a34a', 20) })
-        .bindTooltip('Pickup', { permanent: false, direction: 'top' })
-        .addTo(map);
+    const map = mapRef.current;
 
-      // Delivery marker (red)
-      L.marker(dLatLng, { icon: createMarkerIcon('#ef4444', 20) })
-        .bindTooltip('Delivery', { permanent: false, direction: 'top' })
-        .addTo(map);
+    // Clear previous static route layers
+    routeLayersRef.current.forEach(layer => layer.remove());
+    routeLayersRef.current = [];
 
-      // Try real road route from OSRM
+    if (!pickup?.lat || !pickup?.lng || !delivery?.lat || !delivery?.lng) return;
+
+    const pLatLng = [pickup.lat, pickup.lng];
+    const dLatLng = [delivery.lat, delivery.lng];
+
+    const pMarker = L.marker(pLatLng, { icon: createMarkerIcon('#16a34a', 20) })
+      .bindTooltip('Pickup', { permanent: false, direction: 'top' })
+      .addTo(map);
+    const dMarker = L.marker(dLatLng, { icon: createMarkerIcon('#ef4444', 20) })
+      .bindTooltip('Delivery', { permanent: false, direction: 'top' })
+      .addTo(map);
+      
+    routeLayersRef.current.push(pMarker, dMarker);
+
+    // Initial bounding
+    let initialPoints = [pLatLng, dLatLng];
+    map.fitBounds(L.latLngBounds(initialPoints), { padding: [50, 50] });
+
+    async function fetchAndDrawRoute() {
       const routePoints = await fetchOsrmRoute(pickup, delivery);
-
       if (!isMounted) return;
+      
+      routePointsRef.current = routePoints;
 
+      let polyline;
       if (routePoints) {
-        L.polyline(routePoints, {
+        polyline = L.polyline(routePoints, {
           color: '#16a34a',
-          weight: 5,
-          opacity: 0.75,
+          weight: 6,
+          opacity: 0.8,
         }).addTo(map);
       } else {
-        // Fallback: straight dotted line
-        L.polyline([pLatLng, dLatLng], {
+        polyline = L.polyline([pLatLng, dLatLng], {
           color: '#16a34a',
           weight: 4,
           dashArray: '8, 8',
           opacity: 0.6,
         }).addTo(map);
       }
-
-      // Determine truck position
-      let truckLatLng = null;
-      const driverCoordValid =
-        liveDriverLat && liveDriverLng &&
-        isFinite(Number(liveDriverLat)) &&
-        isFinite(Number(liveDriverLng));
-
-      if (driverCoordValid) {
-        // Live GPS location
-        truckLatLng = [Number(liveDriverLat), Number(liveDriverLng)];
-      } else {
-        // Fall back to progress-based position
-        let progress = 0;
-        if (status === 'picked_up' || status === 'for_pickup') progress = 0.1;
-        else if (status === 'in_transit') progress = 0.5;
-        else if (status === 'delivered') progress = 1.0;
-
-        if (routePoints && routePoints.length > 1) {
-          const idx = Math.floor(progress * (routePoints.length - 1));
-          truckLatLng = routePoints[Math.min(idx, routePoints.length - 1)];
-        } else {
-          truckLatLng = [
-            pLatLng[0] + (dLatLng[0] - pLatLng[0]) * progress,
-            pLatLng[1] + (dLatLng[1] - pLatLng[1]) * progress,
-          ];
-        }
-      }
-
-      if (truckLatLng) {
-        // Only create the truck marker if it doesn't exist, otherwise just move it for smooth animation
-        if (!truckMarkerRef.current) {
-          truckMarkerRef.current = L.marker(truckLatLng, { icon: createTruckIcon(Boolean(liveDriverMeta.active)), zIndexOffset: 1000 })
-            .bindTooltip(
-              liveDriverMeta.location ? `Truck Location: ${liveDriverMeta.location}` : 'Truck Location',
-              { permanent: false, direction: 'top' }
-            )
-            .addTo(map);
-        } else {
-          truckMarkerRef.current.setLatLng(truckLatLng);
-        }
-      }
-
-      // Fit map
-      const allPoints = [pLatLng, dLatLng, ...(truckLatLng ? [truckLatLng] : [])];
-      map.fitBounds(L.latLngBounds(allPoints), { padding: [40, 40] });
+      routeLayersRef.current.push(polyline);
     }
-
-    renderMap();
+    
+    fetchAndDrawRoute();
 
     return () => {
       isMounted = false;
     };
-  }, [pickup, delivery, status, liveDriverLat, liveDriverLng, liveDriverMeta]);
+  }, [pickup, delivery]); // ONLY re-run if pickup or delivery changes
+
+  // 2. Truck Marker Updates & Auto-Tracking
+  useEffect(() => {
+    if (!mapRef.current) return;
+    if (!pickup?.lat || !delivery?.lat) return;
+    
+    const map = mapRef.current;
+    let truckLatLng = null;
+
+    const driverCoordValid = liveDriverLat && liveDriverLng && isFinite(Number(liveDriverLat)) && isFinite(Number(liveDriverLng));
+
+    if (driverCoordValid) {
+      truckLatLng = [Number(liveDriverLat), Number(liveDriverLng)];
+    } else {
+      let progress = 0;
+      if (status === 'picked_up' || status === 'for_pickup') progress = 0.1;
+      else if (status === 'in_transit') progress = 0.5;
+      else if (status === 'delivered') progress = 1.0;
+
+      if (routePointsRef.current && routePointsRef.current.length > 1) {
+        const idx = Math.floor(progress * (routePointsRef.current.length - 1));
+        truckLatLng = routePointsRef.current[Math.min(idx, routePointsRef.current.length - 1)];
+      } else {
+        truckLatLng = [
+          pickup.lat + (delivery.lat - pickup.lat) * progress,
+          pickup.lng + (delivery.lng - pickup.lng) * progress,
+        ];
+      }
+    }
+
+    if (truckLatLng) {
+      if (!truckMarkerRef.current) {
+        truckMarkerRef.current = L.marker(truckLatLng, { icon: createTruckIcon(Boolean(liveDriverMeta.active)), zIndexOffset: 1000 })
+          .bindTooltip(liveDriverMeta.location ? `Truck: ${liveDriverMeta.location}` : 'Truck Location', { permanent: false, direction: 'top' })
+          .addTo(map);
+      } else {
+        truckMarkerRef.current.setLatLng(truckLatLng);
+        truckMarkerRef.current.setIcon(createTruckIcon(Boolean(liveDriverMeta.active))); // Update icon state if active changed
+      }
+
+      // Auto-tracking camera logic
+      if (isAutoTracking) {
+        if (driverCoordValid) {
+          // If we have live GPS, zoom in close to track the truck
+          map.setView(truckLatLng, 15, { animate: true });
+        } else {
+          // If estimating, just make sure all points are in view
+          const allPoints = [[pickup.lat, pickup.lng], [delivery.lat, delivery.lng], truckLatLng];
+          map.fitBounds(L.latLngBounds(allPoints), { padding: [50, 50] });
+        }
+      }
+    }
+  }, [liveDriverLat, liveDriverLng, liveDriverMeta, status, pickup, delivery, isAutoTracking]);
 
   useEffect(() => {
     return () => {
@@ -276,6 +293,13 @@ function RouteDisplayMap({
     ? Date.now() - new Date(liveDriverMeta.updatedAt).getTime() < 120000
     : false;
 
+  const handleTrackClick = () => {
+    setIsAutoTracking(true);
+    if (mapRef.current && hasLiveGps) {
+      mapRef.current.setView([Number(liveDriverLat), Number(liveDriverLng)], 15, { animate: true });
+    }
+  };
+
   return (
     <div className="route-live-map">
       <div className="route-live-map-head">
@@ -294,13 +318,45 @@ function RouteDisplayMap({
         <span>Heading: <strong>{Number.isFinite(Number(liveDriverMeta.heading)) ? `${Math.round(Number(liveDriverMeta.heading))} deg` : 'N/A'}</strong></span>
       </div>
       {liveDriverMeta.location && <p className="route-driver-location">Driver last reported at <strong>{liveDriverMeta.location}</strong></p>}
-      <div
-        ref={mapElementRef}
-        className="route-live-map-frame"
-        style={{ height }}
-      />
+      
+      <div style={{ position: 'relative', width: '100%', height }}>
+        <div
+          ref={mapElementRef}
+          className="route-live-map-frame"
+          style={{ height: '100%', width: '100%', borderRadius: '12px', border: '1px solid var(--line)' }}
+        />
+        
+        {hasLiveGps && (
+          <button
+            type="button"
+            onClick={handleTrackClick}
+            style={{
+              position: 'absolute',
+              bottom: '24px',
+              right: '24px',
+              zIndex: 1000,
+              backgroundColor: isAutoTracking ? '#16a34a' : '#ffffff',
+              color: isAutoTracking ? '#ffffff' : '#111827',
+              border: isAutoTracking ? 'none' : '1px solid #d1d5db',
+              padding: '10px 16px',
+              borderRadius: '24px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              cursor: 'pointer',
+              fontWeight: '600',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <LocateFixed size={18} />
+            {isAutoTracking ? 'Following Truck' : 'Find Truck'}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
 export default RouteDisplayMap;
+
