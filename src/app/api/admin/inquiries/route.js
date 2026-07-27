@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { INQUIRY_STATUSES } from '../../../../data/inquiryStatus.js';
 import { getAdminContext } from '../../../../lib/admin/auth.js';

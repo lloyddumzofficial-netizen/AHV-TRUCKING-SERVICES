@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { AlertTriangle, CheckCircle2, ImagePlus, LockKeyhole, MapPin, Package, Send, Trash2, UserRound, Loader2, Camera } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ClipboardCopy, ImagePlus, LockKeyhole, MapPin, Package, Send, Trash2, UserRound, Loader2, Camera } from 'lucide-react';
 import CustomerInquiryList from './CustomerInquiryList.jsx';
 import { CARGO_OPTIONS } from '../data/cargoOptions.js';
 import { createInquiry, uploadCargoImages } from '../lib/inquiries/api.js';
@@ -36,8 +36,9 @@ const STEP_META = [
   { step: 5, label: 'Review', icon: CheckCircle2 },
 ];
 
-function InquiryForm({ onInquirySubmit, submittedInquiry, session, setSession, profile, onViewMyInquiries }) {
+function InquiryForm({ onInquirySubmit, submittedInquiry, session, setSession, profile, onViewMyInquiries, onTrackInquiry }) {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [copiedReference, setCopiedReference] = useState(false);
   const [form, setForm] = useState(INITIAL_FORM);
   const [pickup, setPickup] = useState(null);
   const [delivery, setDelivery] = useState(null);
@@ -97,6 +98,17 @@ function InquiryForm({ onInquirySubmit, submittedInquiry, session, setSession, p
 
   const updateField = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const copySubmittedReference = async () => {
+    if (!submittedInquiry?.reference) return;
+    try {
+      await navigator.clipboard.writeText(submittedInquiry.reference);
+      setCopiedReference(true);
+      window.setTimeout(() => setCopiedReference(false), 1800);
+    } catch {
+      setSubmitStatus('Unable to copy reference. Please copy it manually.');
+    }
   };
 
   const handleImageChange = async (event) => {
@@ -508,27 +520,49 @@ function InquiryForm({ onInquirySubmit, submittedInquiry, session, setSession, p
 
       {/* SUCCESS MODAL OVERLAY */}
       {showSuccessModal && (
-        <div className="profile-modal-backdrop" style={{ zIndex: 9999 }}>
-          <section className="profile-panel onboarding-modal" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
-            <div style={{ background: 'var(--soft-green)', width: '80px', height: '80px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem', color: 'var(--green)' }}>
+        <div className="profile-modal-backdrop success-modal-backdrop">
+          <section className="profile-panel onboarding-modal success-modal-card" role="dialog" aria-modal="true" aria-labelledby="inquiry-success-title">
+            <div className="success-modal-icon">
               <CheckCircle2 size={40} />
             </div>
-            <h2 style={{ marginBottom: '1rem', fontSize: '1.8rem', color: 'var(--ink)' }}>Inquiry Submitted!</h2>
-            <p style={{ color: 'var(--muted)', marginBottom: '2rem', lineHeight: 1.6, fontSize: '1.05rem' }}>
-              Thank you for choosing AHV Trucking Services. Your inquiry has been securely sent to our backend system. Our dispatchers will review your exact route and cargo details shortly.
+            <p className="success-modal-eyebrow">Saved to AHV dispatch</p>
+            <h2 id="inquiry-success-title">Inquiry submitted</h2>
+            <p>
+              Your request is now in the AHV operations queue. Keep this reference so you can track quote, pickup, and delivery updates.
             </p>
-            <button 
-              type="button" 
-              onClick={() => {
-                setShowSuccessModal(false);
-                if (onViewMyInquiries) onViewMyInquiries();
-              }}
-              style={{ background: 'var(--ink)', color: '#fff', border: 'none', padding: '1rem 2rem', borderRadius: '12px', fontSize: '1.1rem', fontWeight: 'bold', width: '100%', cursor: 'pointer', transition: 'opacity 0.2s' }}
-              onMouseOver={(e) => e.target.style.opacity = '0.9'}
-              onMouseOut={(e) => e.target.style.opacity = '1'}
-            >
-              Go to My Requests
-            </button>
+
+            <div className="success-reference-card">
+              <span>Tracking reference</span>
+              <strong>{submittedInquiry?.reference || 'Generating...'}</strong>
+              <button type="button" onClick={copySubmittedReference} disabled={!submittedInquiry?.reference}>
+                <ClipboardCopy size={16} />
+                {copiedReference ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+
+            <div className="success-modal-actions">
+              <button
+                type="button"
+                className="success-primary-action"
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  onTrackInquiry?.(submittedInquiry?.reference);
+                }}
+                disabled={!submittedInquiry?.reference || !onTrackInquiry}
+              >
+                Track this inquiry
+              </button>
+              <button 
+                type="button" 
+                className="success-secondary-action"
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  onViewMyInquiries?.();
+                }}
+              >
+                Go to My Requests
+              </button>
+            </div>
           </section>
         </div>
       )}

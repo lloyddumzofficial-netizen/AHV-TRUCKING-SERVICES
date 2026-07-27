@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { hydrateInquiryRow, hydrateInquiryRows } from '../../../lib/inquiries/serverQueries.js';
 import { getSupabaseAdminClient, hasSupabaseAdminConfig } from '../../../lib/supabase/admin.js';

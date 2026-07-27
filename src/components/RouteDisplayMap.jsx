@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
+import { getSupabaseBrowserClient } from '../lib/supabase/client.js';
 
 
 function createMarkerIcon(color, size = 18) {
@@ -13,16 +14,17 @@ function createMarkerIcon(color, size = 18) {
   });
 }
 
-function createTruckIcon() {
+function createTruckIcon(isLive = false) {
   return L.divIcon({
     className: '',
-    html: `<div style="background:#111827;color:white;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,0.3);border:2px solid white;">
+    html: `<div style="position:relative;background:${isLive ? '#16a34a' : '#111827'};color:white;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 20px rgba(0,0,0,0.28);border:3px solid white;">
+      ${isLive ? '<span style="position:absolute;inset:-8px;border-radius:50%;border:2px solid rgba(22,163,74,.35);animation:pulseGps 1.7s infinite;"></span>' : ''}
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
       </svg>
     </div>`,
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
+    iconSize: [38, 38],
+    iconAnchor: [19, 19],
   });
 }
 
@@ -46,9 +48,90 @@ async function fetchOsrmRoute(p1, p2) {
   return null;
 }
 
-function RouteDisplayMap({ pickup, delivery, status, driverLat, driverLng, driverLocation, height = '400px' }) {
+function formatGpsTime(value) {
+  if (!value) return 'No live GPS yet';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'No live GPS yet';
+  return date.toLocaleString();
+}
+
+function RouteDisplayMap({
+  pickup,
+  delivery,
+  status,
+  driverLat,
+  driverLng,
+  driverLocation,
+  driverAccuracy,
+  driverSpeedKph,
+  driverHeading,
+  driverUpdatedAt,
+  driverTrackingActive,
+  inquiryReference,
+  height = '400px',
+}) {
   const mapElementRef = useRef(null);
   const mapRef = useRef(null);
+  const truckMarkerRef = useRef(null);
+
+  // Local state to hold live driver coords if updated via realtime
+  const [liveDriverLat, setLiveDriverLat] = useState(driverLat);
+  const [liveDriverLng, setLiveDriverLng] = useState(driverLng);
+  const [liveDriverMeta, setLiveDriverMeta] = useState({
+    location: driverLocation,
+    accuracy: driverAccuracy,
+    speed: driverSpeedKph,
+    heading: driverHeading,
+    updatedAt: driverUpdatedAt,
+    active: driverTrackingActive,
+  });
+
+  // Sync props to local state initially or when they change externally
+  useEffect(() => {
+    setLiveDriverLat(driverLat);
+    setLiveDriverLng(driverLng);
+    setLiveDriverMeta({
+      location: driverLocation,
+      accuracy: driverAccuracy,
+      speed: driverSpeedKph,
+      heading: driverHeading,
+      updatedAt: driverUpdatedAt,
+      active: driverTrackingActive,
+    });
+  }, [driverLat, driverLng, driverLocation, driverAccuracy, driverSpeedKph, driverHeading, driverUpdatedAt, driverTrackingActive]);
+
+  // Supabase Realtime Subscription
+  useEffect(() => {
+    if (!inquiryReference) return;
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+
+    const channel = supabase.channel(`public:inquiries:ref=${inquiryReference}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'inquiries',
+        filter: `reference=eq.${inquiryReference}`
+      }, (payload) => {
+        if (payload.new.driver_lat && payload.new.driver_lng) {
+          setLiveDriverLat(payload.new.driver_lat);
+          setLiveDriverLng(payload.new.driver_lng);
+          setLiveDriverMeta({
+            location: payload.new.driver_location,
+            accuracy: payload.new.driver_accuracy_m,
+            speed: payload.new.driver_speed_kph,
+            heading: payload.new.driver_heading,
+            updatedAt: payload.new.driver_updated_at,
+            active: payload.new.driver_tracking_active,
+          });
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [inquiryReference]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -79,6 +162,7 @@ function RouteDisplayMap({ pickup, delivery, status, driverLat, driverLng, drive
           map.removeLayer(layer);
         }
       });
+      truckMarkerRef.current = null;
 
       if (!pickup?.lat || !pickup?.lng || !delivery?.lat || !delivery?.lng) return;
 
@@ -119,13 +203,13 @@ function RouteDisplayMap({ pickup, delivery, status, driverLat, driverLng, drive
       // Determine truck position
       let truckLatLng = null;
       const driverCoordValid =
-        driverLat && driverLng &&
-        isFinite(Number(driverLat)) &&
-        isFinite(Number(driverLng));
+        liveDriverLat && liveDriverLng &&
+        isFinite(Number(liveDriverLat)) &&
+        isFinite(Number(liveDriverLng));
 
       if (driverCoordValid) {
-        // Admin-pinned exact location
-        truckLatLng = [Number(driverLat), Number(driverLng)];
+        // Live GPS location
+        truckLatLng = [Number(liveDriverLat), Number(liveDriverLng)];
       } else {
         // Fall back to progress-based position
         let progress = 0;
@@ -145,9 +229,16 @@ function RouteDisplayMap({ pickup, delivery, status, driverLat, driverLng, drive
       }
 
       if (truckLatLng) {
-        const marker = L.marker(truckLatLng, { icon: createTruckIcon() }).addTo(map);
-        if (driverLocation) {
-          marker.bindTooltip(`🚛 ${driverLocation}`, { permanent: true, direction: 'top', offset: [0, -18] });
+        // Only create the truck marker if it doesn't exist, otherwise just move it for smooth animation
+        if (!truckMarkerRef.current) {
+          truckMarkerRef.current = L.marker(truckLatLng, { icon: createTruckIcon(Boolean(liveDriverMeta.active)), zIndexOffset: 1000 })
+            .bindTooltip(
+              liveDriverMeta.location ? `Truck Location: ${liveDriverMeta.location}` : 'Truck Location',
+              { permanent: false, direction: 'top' }
+            )
+            .addTo(map);
+        } else {
+          truckMarkerRef.current.setLatLng(truckLatLng);
         }
       }
 
@@ -161,7 +252,7 @@ function RouteDisplayMap({ pickup, delivery, status, driverLat, driverLng, drive
     return () => {
       isMounted = false;
     };
-  }, [pickup, delivery, status, driverLat, driverLng, driverLocation]);
+  }, [pickup, delivery, status, liveDriverLat, liveDriverLng, liveDriverMeta]);
 
   useEffect(() => {
     return () => {
@@ -180,24 +271,33 @@ function RouteDisplayMap({ pickup, delivery, status, driverLat, driverLng, drive
     status === 'picked_up' ? 'Picked Up 📦' :
     'Pending Route';
 
+  const hasLiveGps = liveDriverLat && liveDriverLng;
+  const gpsFresh = liveDriverMeta.updatedAt
+    ? Date.now() - new Date(liveDriverMeta.updatedAt).getTime() < 120000
+    : false;
+
   return (
-    <div style={{ marginTop: '1.5rem', marginBottom: '1rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-        <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--ink)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Visual Route Progress
-        </span>
-        <span style={{ fontSize: '0.8rem', color: 'var(--green)', fontWeight: 700 }}>
-          {statusLabel}
+    <div className="route-live-map">
+      <div className="route-live-map-head">
+        <div>
+          <span>Live route progress</span>
+          <strong>{hasLiveGps ? 'Driver GPS visible' : 'Estimated route position'}</strong>
+        </div>
+        <span className={gpsFresh && liveDriverMeta.active ? 'gps-status-chip live' : 'gps-status-chip'}>
+          {gpsFresh && liveDriverMeta.active ? 'Live GPS' : statusLabel}
         </span>
       </div>
-      {driverLocation && (
-        <p style={{ fontSize: '0.8rem', color: 'var(--muted)', margin: '0 0 0.75rem', fontWeight: 600 }}>
-          📍 Driver last reported at: <strong style={{ color: 'var(--ink)' }}>{driverLocation}</strong>
-        </p>
-      )}
+      <div className="route-gps-meta">
+        <span>Last sync: <strong>{formatGpsTime(liveDriverMeta.updatedAt)}</strong></span>
+        <span>Accuracy: <strong>{Number.isFinite(Number(liveDriverMeta.accuracy)) ? `${Math.round(Number(liveDriverMeta.accuracy))} m` : 'N/A'}</strong></span>
+        <span>Speed: <strong>{Number.isFinite(Number(liveDriverMeta.speed)) ? `${Math.round(Number(liveDriverMeta.speed))} kph` : 'N/A'}</strong></span>
+        <span>Heading: <strong>{Number.isFinite(Number(liveDriverMeta.heading)) ? `${Math.round(Number(liveDriverMeta.heading))} deg` : 'N/A'}</strong></span>
+      </div>
+      {liveDriverMeta.location && <p className="route-driver-location">Driver last reported at <strong>{liveDriverMeta.location}</strong></p>}
       <div
         ref={mapElementRef}
-        style={{ width: '100%', height, borderRadius: '12px', overflow: 'hidden', background: 'var(--soft)' }}
+        className="route-live-map-frame"
+        style={{ height }}
       />
     </div>
   );

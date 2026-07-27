@@ -1,30 +1,40 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Ban, CalendarClock, ClipboardList, Image as ImageIcon, Loader2, LogOut, MapPin, PhoneCall, RefreshCw, Search, ShieldCheck, Trash2, Truck, UserRound, Monitor, X } from 'lucide-react';
-import { INQUIRY_STATUSES, INQUIRY_STATUS_HELP, INQUIRY_STATUS_LABELS } from '../../data/inquiryStatus.js';
+import dynamic from 'next/dynamic';
+import {
+  AlertCircle,
+  Ban,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
+  Copy,
+  ExternalLink,
+  Eye,
+  Image as ImageIcon,
+  Link as LinkIcon,
+  Loader2,
+  LogOut,
+  MapPin,
+  Monitor,
+  PhoneCall,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Trash2,
+  Truck,
+  X,
+} from 'lucide-react';
+import { INQUIRY_STATUSES, INQUIRY_STATUS_LABELS } from '../../data/inquiryStatus.js';
 import { deleteAdminInquiry, getAdminInquiries, updateAdminInquiry } from '../../lib/admin/api.js';
 import { getSupabaseBrowserClient } from '../../lib/supabase/client.js';
 import AdminRouteTools from './AdminRouteTools.jsx';
-import dynamic from 'next/dynamic';
-
-const AdminDispatcherMap = dynamic(() => import('./AdminDispatcherMap.jsx'), {
-  ssr: false,
-  loading: () => <div className="admin-dispatcher-map loading">Loading map...</div>,
-});
 
 const RouteDisplayMap = dynamic(() => import('../RouteDisplayMap.jsx'), {
   ssr: false,
-  loading: () => <div style={{ height: '220px', background: 'var(--soft)', borderRadius: '10px', display: 'grid', placeItems: 'center', color: 'var(--muted)' }}>Loading map...</div>,
+  loading: () => <div className="admin-map-skeleton">Loading map...</div>,
 });
-
-const KANBAN_COLUMNS = [
-  { id: 'new', label: 'New Requests', statuses: ['new'] },
-  { id: 'processing', label: 'Processing', statuses: ['reviewing', 'quoted', 'accepted'] },
-  { id: 'ready', label: 'Ready', statuses: ['scheduled', 'for_pickup', 'picked_up'] },
-  { id: 'transit', label: 'In Transit', statuses: ['in_transit'] },
-  { id: 'completed', label: 'Completed', statuses: ['delivered', 'cancelled'] }
-];
 
 const EMPTY_FORM = {
   status: 'new',
@@ -38,19 +48,39 @@ const EMPTY_FORM = {
   driverLng: '',
 };
 
-const ADMIN_PAGE_SIZE = 100; // Increased for Kanban board
+const ADMIN_PAGE_SIZE = 20;
+
+const SORT_OPTIONS = [
+  { value: 'newest', label: 'Newest first' },
+  { value: 'oldest', label: 'Oldest first' },
+  { value: 'customer', label: 'Customer A-Z' },
+  { value: 'status', label: 'Status' },
+  { value: 'quote', label: 'Highest quote' },
+];
 
 function formatDate(value) {
   if (!value) {
     return 'Not set';
   }
 
-  return new Date(value).toLocaleString();
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Not set';
+  }
+
+  return date.toLocaleString('en-PH', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 function formatMoney(value) {
   if (!value) {
-    return 'No quote yet';
+    return 'No quote';
   }
 
   return new Intl.NumberFormat('en-PH', {
@@ -96,10 +126,57 @@ function createFormState(inquiry) {
   };
 }
 
+function countStatuses(counters, statuses) {
+  return statuses.reduce((total, status) => total + Number(counters?.[status] || 0), 0);
+}
+
+function getInquirySubject(inquiry) {
+  const cargo = inquiry.cargo_type || 'General cargo';
+  const pickup = inquiry.pickup_address || 'Pickup not set';
+  const delivery = inquiry.delivery_address || 'Delivery not set';
+
+  return `${cargo} - ${pickup} to ${delivery}`;
+}
+
+function sortInquiries(inquiries, sortBy) {
+  return [...inquiries].sort((first, second) => {
+    if (sortBy === 'oldest') {
+      return new Date(first.created_at || 0) - new Date(second.created_at || 0);
+    }
+
+    if (sortBy === 'customer') {
+      return (first.customer_name || '').localeCompare(second.customer_name || '');
+    }
+
+    if (sortBy === 'status') {
+      return (first.status || '').localeCompare(second.status || '');
+    }
+
+    if (sortBy === 'quote') {
+      return Number(second.quoted_price || 0) - Number(first.quoted_price || 0);
+    }
+
+    return new Date(second.created_at || 0) - new Date(first.created_at || 0);
+  });
+}
+
+function ToastIcon({ type }) {
+  if (type === 'error') {
+    return <AlertCircle size={18} />;
+  }
+
+  if (type === 'success') {
+    return <CheckCircle2 size={18} />;
+  }
+
+  return <ShieldCheck size={18} />;
+}
+
 function AdminDashboard({ session, profile, setSession }) {
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
-  const [payload, setPayload] = useState({ counters: {}, inquiries: [], admins: [] });
+  const [sortBy, setSortBy] = useState('newest');
+  const [payload, setPayload] = useState({ counters: {}, inquiries: [], admins: [], pagination: null });
   const [page, setPage] = useState(1);
   const [selectedReference, setSelectedReference] = useState('');
   const [form, setForm] = useState(EMPTY_FORM);
@@ -109,24 +186,50 @@ function AdminDashboard({ session, profile, setSession }) {
   const [lastSyncedAt, setLastSyncedAt] = useState('');
   const [liveStatus, setLiveStatus] = useState('');
   const [newInquiryNotice, setNewInquiryNotice] = useState('');
-  const [pendingDeleteReference, setPendingDeleteReference] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [toasts, setToasts] = useState([]);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [isSavingLocation, setIsSavingLocation] = useState(false);
   const [locationQuery, setLocationQuery] = useState('');
   const [locationSuggestions, setLocationSuggestions] = useState([]);
   const [locationSearching, setLocationSearching] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState(null);
+  const [generatingLink, setGeneratingLink] = useState(false);
   const isAdmin = profile?.role === 'admin';
   const supabase = getSupabaseBrowserClient();
   const knownReferencesRef = useRef(new Set());
-  // isDirtyRef: true when admin has unsaved changes or is mid-save.
-  // Prevents background syncs from wiping the form state.
   const isDirtyRef = useRef(false);
+  const loadedReferenceRef = useRef('');
 
   const selectedInquiry = useMemo(
     () => payload.inquiries.find((inquiry) => inquiry.reference === selectedReference) || null,
     [payload.inquiries, selectedReference],
   );
+
+  const sortedInquiries = useMemo(
+    () => sortInquiries(payload.inquiries || [], sortBy),
+    [payload.inquiries, sortBy],
+  );
+
+  const pagination = payload.pagination || {
+    page,
+    pageSize: ADMIN_PAGE_SIZE,
+    total: sortedInquiries.length,
+    totalPages: 1,
+  };
+
+  const hasFilters = Boolean(search.trim() || statusFilter !== 'all');
+  const driverLink = selectedInquiry?.driver_tracking_token && typeof window !== 'undefined'
+    ? `${window.location.origin}/driver/track/${selectedInquiry.driver_tracking_token}`
+    : '';
+
+  const addToast = useCallback((type, message) => {
+    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    setToasts((current) => [...current, { id, type, message }].slice(-4));
+    window.setTimeout(() => {
+      setToasts((current) => current.filter((toast) => toast.id !== id));
+    }, 4200);
+  }, []);
 
   const loadDashboard = useCallback(async ({ quiet = false } = {}) => {
     if (!isAdmin || !session?.access_token) {
@@ -152,7 +255,9 @@ function AdminDashboard({ session, profile, setSession }) {
         const freshReferences = [...nextReferences].filter((reference) => !previousReferences.has(reference));
 
         if (freshReferences.length > 0) {
-          setNewInquiryNotice(`${freshReferences.length} new inquiry${freshReferences.length > 1 ? 'ies' : ''} received.`);
+          const notice = `${freshReferences.length} new inquiry${freshReferences.length > 1 ? 'ies' : ''} received.`;
+          setNewInquiryNotice(notice);
+          addToast('info', notice);
         }
       }
 
@@ -163,18 +268,19 @@ function AdminDashboard({ session, profile, setSession }) {
           return current;
         }
 
-        return ''; // Don't auto-select in Kanban view
+        return '';
       });
-      setLastSyncedAt(new Date().toLocaleTimeString());
+      setLastSyncedAt(new Date().toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' }));
       if (!quiet) {
         setStatus('');
       }
     } catch (loadError) {
       setStatus(loadError.message);
+      addToast('error', loadError.message || 'Could not load admin inquiries.');
     } finally {
       setIsLoading(false);
     }
-  }, [isAdmin, page, search, session?.access_token, statusFilter]);
+  }, [addToast, isAdmin, page, search, session?.access_token, statusFilter]);
 
   useEffect(() => {
     setPage(1);
@@ -190,17 +296,17 @@ function AdminDashboard({ session, profile, setSession }) {
     }
 
     const refreshTimer = window.setInterval(() => {
-        getAdminInquiries(session.access_token, {
-          status: statusFilter,
-          search,
-          page,
-          pageSize: ADMIN_PAGE_SIZE,
-        })
-      .then((data) => {
-        setPayload(data);
-        setLastSyncedAt(new Date().toLocaleTimeString());
+      getAdminInquiries(session.access_token, {
+        status: statusFilter,
+        search,
+        page,
+        pageSize: ADMIN_PAGE_SIZE,
       })
-      .catch(() => undefined);
+        .then((data) => {
+          setPayload(data);
+          setLastSyncedAt(new Date().toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' }));
+        })
+        .catch(() => undefined);
     }, 30000);
 
     return () => window.clearInterval(refreshTimer);
@@ -216,7 +322,7 @@ function AdminDashboard({ session, profile, setSession }) {
       window.clearTimeout(refreshTimer);
       refreshTimer = window.setTimeout(() => {
         loadDashboard({ quiet: true });
-        setLiveStatus('Live update received.');
+        setLiveStatus('Realtime update received');
       }, 350);
     };
 
@@ -228,7 +334,7 @@ function AdminDashboard({ session, profile, setSession }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'user_profiles' }, syncLiveUpdate)
       .subscribe((state) => {
         if (state === 'SUBSCRIBED') {
-          setLiveStatus('Realtime connected.');
+          setLiveStatus('Realtime connected');
         }
       });
 
@@ -239,34 +345,39 @@ function AdminDashboard({ session, profile, setSession }) {
   }, [isAdmin, loadDashboard, session?.access_token, supabase]);
 
   useEffect(() => {
-    // Skip form reset while dirty (unsaved changes) OR while a location save is in flight.
-    // This prevents realtime events triggered by our own save from wiping the driver location.
+    if (selectedInquiry?.reference !== loadedReferenceRef.current) {
+      isDirtyRef.current = false;
+      loadedReferenceRef.current = selectedInquiry?.reference || '';
+      setForm(createFormState(selectedInquiry));
+      setDeleteTarget(null);
+      return;
+    }
+
     if (isDirtyRef.current) {
       return;
     }
+
     setForm(createFormState(selectedInquiry));
-    setPendingDeleteReference('');
+    setDeleteTarget(null);
   }, [selectedInquiry]);
 
   useEffect(() => {
     const q = locationQuery;
-    
-    // Don't search if too short or if it matches the selected label
+
     if (q.trim().length < 3 || selectedLocation?.label === q) {
       if (!selectedLocation && locationSuggestions.length > 0) {
         setLocationSuggestions([]);
       }
-      return;
+      return undefined;
     }
 
     setLocationSearching(true);
-    
-    // 800ms debounce to comply with Nominatim's 1-request-per-second limit and avoid 403 Forbidden
-    const timer = setTimeout(async () => {
+
+    const timer = window.setTimeout(async () => {
       try {
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ', Philippines')}&format=json&limit=6&addressdetails=1`,
-          { headers: { 'Accept-Language': 'en' } }
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(`${q}, Philippines`)}&format=json&limit=6&addressdetails=1`,
+          { headers: { 'Accept-Language': 'en' } },
         );
         if (res.ok) {
           const data = await res.json();
@@ -281,16 +392,29 @@ function AdminDashboard({ session, profile, setSession }) {
       }
     }, 800);
 
-    return () => clearTimeout(timer);
-  }, [locationQuery, selectedLocation]);
+    return () => window.clearTimeout(timer);
+  }, [locationQuery, locationSuggestions.length, selectedLocation]);
 
   const updateForm = (field, value) => {
     isDirtyRef.current = true;
     setForm((current) => ({ ...current, [field]: value }));
   };
 
+  const patchInquiryInPayload = (reference, inquiry) => {
+    if (!inquiry) {
+      return;
+    }
+
+    setPayload((current) => ({
+      ...current,
+      inquiries: current.inquiries.map((item) => (item.reference === reference ? { ...item, ...inquiry } : item)),
+    }));
+  };
+
   const saveInquiry = async (event) => {
-    if (event) event.preventDefault();
+    if (event) {
+      event.preventDefault();
+    }
 
     if (!selectedInquiry || !session?.access_token) {
       return;
@@ -300,12 +424,37 @@ function AdminDashboard({ session, profile, setSession }) {
     setStatus('Saving admin updates...');
 
     try {
-      await updateAdminInquiry(session.access_token, selectedInquiry.reference, form);
+      const result = await updateAdminInquiry(session.access_token, selectedInquiry.reference, form);
       isDirtyRef.current = false;
+      patchInquiryInPayload(selectedInquiry.reference, result?.inquiry);
       await loadDashboard({ quiet: true });
-      setStatus('Inquiry updated.');
+      setStatus('');
+      addToast('success', 'Inquiry updated.');
     } catch (saveError) {
       setStatus(saveError.message);
+      addToast('error', saveError.message || 'Could not update inquiry.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const markAsRead = async (inquiry) => {
+    if (!inquiry || inquiry.status !== 'new' || !session?.access_token) {
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const result = await updateAdminInquiry(session.access_token, inquiry.reference, {
+        status: 'reviewing',
+        adminNotes: inquiry.admin_notes || 'Marked as read by AHV admin.',
+      });
+      patchInquiryInPayload(inquiry.reference, result?.inquiry);
+      await loadDashboard({ quiet: true });
+      addToast('success', `${inquiry.reference} marked as read.`);
+    } catch (readError) {
+      addToast('error', readError.message || 'Could not mark inquiry as read.');
     } finally {
       setIsSaving(false);
     }
@@ -320,42 +469,38 @@ function AdminDashboard({ session, profile, setSession }) {
     setStatus('Rejecting inquiry...');
 
     try {
-      await updateAdminInquiry(session.access_token, selectedInquiry.reference, {
+      const result = await updateAdminInquiry(session.access_token, selectedInquiry.reference, {
         ...form,
         status: 'cancelled',
         adminNotes: form.adminNotes || 'Inquiry rejected by AHV admin.',
       });
+      patchInquiryInPayload(selectedInquiry.reference, result?.inquiry);
       await loadDashboard({ quiet: true });
-      setStatus('Inquiry rejected.');
+      setStatus('');
+      addToast('success', 'Inquiry rejected.');
     } catch (rejectError) {
       setStatus(rejectError.message);
+      addToast('error', rejectError.message || 'Could not reject inquiry.');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const deleteInquiry = async () => {
-    if (!selectedInquiry || !session?.access_token) {
-      return;
-    }
-
-    if (pendingDeleteReference !== selectedInquiry.reference) {
-      setPendingDeleteReference(selectedInquiry.reference);
-      setStatus('Tap Delete Inquiry again to permanently remove this inquiry record.');
+  const confirmDeleteInquiry = async () => {
+    if (!deleteTarget || !session?.access_token) {
       return;
     }
 
     setIsSaving(true);
-    setStatus('Deleting inquiry...');
 
     try {
-      await deleteAdminInquiry(session.access_token, selectedInquiry.reference);
-      setPendingDeleteReference('');
-      setSelectedReference('');
+      await deleteAdminInquiry(session.access_token, deleteTarget.reference);
+      setDeleteTarget(null);
+      setSelectedReference((current) => (current === deleteTarget.reference ? '' : current));
       await loadDashboard({ quiet: true });
-      setStatus('Inquiry deleted.');
+      addToast('success', `${deleteTarget.reference} deleted.`);
     } catch (deleteError) {
-      setStatus(deleteError.message);
+      addToast('error', deleteError.message || 'Could not delete inquiry.');
     } finally {
       setIsSaving(false);
     }
@@ -366,249 +511,432 @@ function AdminDashboard({ session, profile, setSession }) {
     setSession(null);
   };
 
+  const generateDriverLink = async (reference) => {
+    try {
+      setGeneratingLink(true);
+      const res = await fetch(`/api/admin/inquiries/${reference}/driver-link`, {
+        method: 'POST',
+      });
+
+      let data = {};
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(`Server returned a non-JSON response. Status: ${res.status}`);
+      }
+
+      if (!res.ok) {
+        throw new Error(data.error || `HTTP Error ${res.status}`);
+      }
+
+      setPayload((current) => ({
+        ...current,
+        inquiries: current.inquiries.map((inquiry) =>
+          inquiry.reference === reference ? { ...inquiry, driver_tracking_token: data.token } : inquiry
+        ),
+      }));
+      addToast('success', 'Driver tracking link generated.');
+    } catch (err) {
+      addToast('error', err.message || 'Could not generate tracking link.');
+    } finally {
+      setGeneratingLink(false);
+    }
+  };
+
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      addToast('success', 'Tracking link copied.');
+    } catch {
+      addToast('error', 'Could not copy tracking link.');
+    }
+  };
+
+  const clearFilters = () => {
+    setSearch('');
+    setStatusFilter('all');
+    setSortBy('newest');
+    setPage(1);
+  };
+
+  const overviewCards = [
+    {
+      label: 'Total inquiries',
+      value: payload.counters?.all || 0,
+      help: 'All submitted requests',
+      tone: 'ink',
+    },
+    {
+      label: 'Pending',
+      value: countStatuses(payload.counters, ['new', 'reviewing']),
+      help: 'Needs review or follow-up',
+      tone: 'amber',
+    },
+    {
+      label: 'Active bookings',
+      value: countStatuses(payload.counters, ['scheduled', 'for_pickup', 'picked_up', 'in_transit']),
+      help: 'Scheduled or moving cargo',
+      tone: 'green',
+    },
+    {
+      label: 'Resolved',
+      value: payload.counters?.delivered || 0,
+      help: 'Delivered inquiries',
+      tone: 'blue',
+    },
+  ];
+
   if (!isAdmin) {
     return null;
   }
 
   return (
-    <section className="admin-dashboard" id="admin">
-      <div className="section-heading admin-heading">
-        <div>
-          <p className="eyebrow">Admin operations</p>
-          <h2>Manage AHV trucking inquiries.</h2>
-          <p>Review all client submissions, assign admins, update status, inspect cargo images, and plan the real route.</p>
-        </div>
-        <div className="admin-command-bar">
-          <button className="admin-refresh-button" type="button" onClick={() => loadDashboard()} disabled={isLoading}>
-            <RefreshCw size={17} />
-            Refresh
-          </button>
-          <button className="admin-logout-button" type="button" onClick={signOut}>
-            <LogOut size={17} />
-            Logout
-          </button>
-        </div>
+    <section className="admin-dashboard admin-console" id="admin">
+      <div className="desktop-only-warning admin-desktop-gate">
+        <Monitor size={44} />
+        <strong>Desktop dashboard required</strong>
+        <p>For admin safety and faster operations, please manage inquiries from a laptop or desktop screen.</p>
       </div>
 
-      <div className="admin-kpis">
-        {['all', ...INQUIRY_STATUSES].map((item) => (
-          <button
-            key={item}
-            className={statusFilter === item ? 'admin-kpi active' : 'admin-kpi'}
-            type="button"
-            onClick={() => setStatusFilter(item)}
-          >
-            <span>{item === 'all' ? 'All' : INQUIRY_STATUS_LABELS[item]}</span>
-            <strong>{payload.counters?.[item] || 0}</strong>
-            <small>{item === 'all' ? 'Total requests' : INQUIRY_STATUS_HELP[item]}</small>
-          </button>
-        ))}
-      </div>
-
-      <div className="admin-search">
-        <Search size={18} />
-        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search reference, client, phone, pickup, delivery, cargo" />
-      </div>
-
-      {status && (
-        <p className="admin-status">
-          {(isSaving || isLoading) && <Loader2 size={16} />}
-          {status}
-        </p>
-      )}
-      {lastSyncedAt && <p className="admin-sync-note">Synced {lastSyncedAt}. Auto-refresh runs every 30 seconds.</p>}
-      {liveStatus && <p className="admin-live-note">{liveStatus}</p>}
-      {newInquiryNotice && (
-        <button className="admin-new-notice" type="button" onClick={() => {
-          setNewInquiryNotice('');
-          setPage(1);
-          loadDashboard();
-        }}>
-          {newInquiryNotice} Tap to review latest.
-        </button>
-      )}
-
-      <div className="admin-map-container">
-        <AdminDispatcherMap inquiries={payload.inquiries} />
-      </div>
-
-      <div className="desktop-only-warning">
-        <Monitor size={48} />
-        <strong>Desktop Layout Required</strong>
-        <p>The Admin Kanban Board is designed for wide screens. Please access this dashboard from a desktop or laptop computer.</p>
-      </div>
-
-      <div className="admin-kanban-board">
-        {KANBAN_COLUMNS.map((col) => {
-          const colInquiries = payload.inquiries.filter((inq) => col.statuses.includes(inq.status));
-          return (
-            <div key={col.id} className="admin-kanban-column">
-              <div className="admin-kanban-header">
-                <span>{col.label}</span>
-                <span className="count">{colInquiries.length}</span>
-              </div>
-              <div className="admin-kanban-cards">
-                {colInquiries.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--muted)', fontSize: '0.85rem' }}>
-                    Empty
-                  </div>
-                ) : (
-                  colInquiries.map((inquiry) => (
-                    <button
-                      key={inquiry.reference}
-                      className="admin-kanban-card"
-                      type="button"
-                      onClick={() => setSelectedReference(inquiry.reference)}
-                      style={{
-                        borderColor: selectedInquiry?.reference === inquiry.reference ? 'var(--green)' : undefined,
-                        boxShadow: selectedInquiry?.reference === inquiry.reference ? '0 0 0 2px rgba(22,163,74,0.18)' : undefined,
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                        <span className="ref">{inquiry.reference}</span>
-                        <span className={`admin-status-chip ${inquiry.status}`} style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem' }}>
-                          {INQUIRY_STATUS_LABELS[inquiry.status]}
-                        </span>
-                      </div>
-                      <strong className="route" style={{ fontSize: '0.85rem' }}>
-                        {inquiry.customer_name || 'Unknown'}
-                      </strong>
-                      <small className="date" style={{ color: 'var(--muted)', fontSize: '0.78rem' }}>
-                        {inquiry.pickup_address} → {inquiry.delivery_address}
-                      </small>
-                      <em className="price">{formatMoney(inquiry.quoted_price)}</em>
-                    </button>
-                  ))
-                )}
-              </div>
+      <div className="admin-console-shell">
+        <aside className="admin-sidebar" aria-label="Admin dashboard navigation">
+          <div className="admin-sidebar-brand">
+            <Truck size={22} />
+            <div>
+              <strong>AHV Admin</strong>
+              <span>Operations console</span>
             </div>
-          );
-        })}
+          </div>
+          <nav>
+            <a href="#admin-overview" className="active">
+              <ClipboardList size={17} />
+              Dashboard
+            </a>
+            <a href="#admin-inquiries">
+              <Search size={17} />
+              Inquiries
+            </a>
+            <a href="#admin-sync">
+              <ShieldCheck size={17} />
+              Realtime
+            </a>
+          </nav>
+          <div className="admin-sidebar-status" id="admin-sync">
+            <span>Last synced</span>
+            <strong>{lastSyncedAt || 'Waiting'}</strong>
+            <small>{liveStatus || 'Realtime starting'}</small>
+          </div>
+        </aside>
+
+        <main className="admin-main">
+          <header className="admin-console-header">
+            <div>
+              <p className="eyebrow">Admin operations</p>
+              <h1>Inquiries Management</h1>
+              <p>Review client requests, quote routes, coordinate drivers, and keep each shipment moving.</p>
+            </div>
+            <div className="admin-command-bar">
+              <button className="admin-refresh-button" type="button" onClick={() => loadDashboard()} disabled={isLoading}>
+                <RefreshCw size={17} className={isLoading ? 'spinning' : ''} />
+                Refresh
+              </button>
+              <button className="admin-logout-button" type="button" onClick={signOut}>
+                <LogOut size={17} />
+                Logout
+              </button>
+            </div>
+          </header>
+
+          <section className="admin-overview-grid" id="admin-overview" aria-label="Dashboard overview">
+            {isLoading && sortedInquiries.length === 0 ? (
+              [1, 2, 3, 4].map((item) => <div className="admin-overview-card skeleton-pulse" key={item} />)
+            ) : (
+              overviewCards.map((card) => (
+                <article className={`admin-overview-card ${card.tone}`} key={card.label}>
+                  <span>{card.label}</span>
+                  <strong>{card.value}</strong>
+                  <small>{card.help}</small>
+                </article>
+              ))
+            )}
+          </section>
+
+          {newInquiryNotice && (
+            <button
+              className="admin-new-notice"
+              type="button"
+              onClick={() => {
+                setNewInquiryNotice('');
+                setPage(1);
+                loadDashboard();
+              }}
+            >
+              {newInquiryNotice} Click to review latest.
+            </button>
+          )}
+
+          <section className="admin-table-panel" id="admin-inquiries">
+            <div className="admin-panel-head">
+              <div>
+                <span>Inquiries</span>
+                <h2>Client requests queue</h2>
+              </div>
+              <p>{pagination.total || sortedInquiries.length} total records</p>
+            </div>
+
+            <div className="admin-filter-bar">
+              <label className="admin-search">
+                <Search size={18} />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search reference, client, phone, pickup, delivery, cargo"
+                />
+              </label>
+              <label>
+                Status
+                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                  <option value="all">All statuses</option>
+                  {INQUIRY_STATUSES.map((item) => (
+                    <option key={item} value={item}>{INQUIRY_STATUS_LABELS[item]}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Sort
+                <select value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
+                  {SORT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+              {hasFilters && (
+                <button className="admin-clear-button" type="button" onClick={clearFilters}>
+                  Clear filters
+                </button>
+              )}
+            </div>
+
+            {status && (
+              <p className="admin-status">
+                {(isSaving || isLoading) && <Loader2 size={16} className="spinning" />}
+                {status}
+              </p>
+            )}
+
+            <div className="admin-sync-strip">
+              <span>Last synced: {lastSyncedAt || 'Not yet'}</span>
+              <span>{liveStatus || 'Realtime starting'}</span>
+              <span>Auto-refresh every 30 seconds</span>
+            </div>
+
+            <div className="admin-table-wrap">
+              <table className="admin-inquiries-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Customer</th>
+                    <th>Subject / Route</th>
+                    <th>Status</th>
+                    <th>Quote</th>
+                    <th>Assigned</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {isLoading && sortedInquiries.length === 0 ? (
+                    [1, 2, 3, 4, 5].map((item) => (
+                      <tr className="admin-table-skeleton" key={item}>
+                        <td colSpan="7"><span className="skeleton-pulse" /></td>
+                      </tr>
+                    ))
+                  ) : sortedInquiries.length === 0 ? (
+                    <tr>
+                      <td colSpan="7">
+                        <div className="admin-empty-state">
+                          <ClipboardList size={28} />
+                          <strong>No inquiries found</strong>
+                          <span>Try another search term or clear the filters.</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    sortedInquiries.map((inquiry) => (
+                      <tr
+                        key={inquiry.reference}
+                        className={selectedInquiry?.reference === inquiry.reference ? 'selected' : ''}
+                      >
+                        <td>
+                          <time>{formatDate(inquiry.created_at)}</time>
+                          <small>{inquiry.reference}</small>
+                        </td>
+                        <td>
+                          <strong>{inquiry.customer_name || 'Unknown client'}</strong>
+                          <small>{inquiry.customer_phone || 'No phone'}</small>
+                        </td>
+                        <td>
+                          <strong>{inquiry.cargo_type || 'General cargo'}</strong>
+                          <small>{inquiry.pickup_address || 'Pickup not set'} to {inquiry.delivery_address || 'Delivery not set'}</small>
+                        </td>
+                        <td>
+                          <span className={getStatusClass(inquiry.status)}>
+                            {INQUIRY_STATUS_LABELS[inquiry.status] || inquiry.status || 'New'}
+                          </span>
+                        </td>
+                        <td>{formatMoney(inquiry.quoted_price)}</td>
+                        <td>{inquiry.assigned_admin_email || 'Unassigned'}</td>
+                        <td>
+                          <div className="admin-row-actions">
+                            <button type="button" onClick={() => setSelectedReference(inquiry.reference)}>
+                              <Eye size={15} />
+                              View
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => markAsRead(inquiry)}
+                              disabled={isSaving || inquiry.status !== 'new'}
+                            >
+                              <CheckCircle2 size={15} />
+                              Mark read
+                            </button>
+                            <button
+                              type="button"
+                              className="danger"
+                              onClick={() => setDeleteTarget(inquiry)}
+                              disabled={isSaving}
+                            >
+                              <Trash2 size={15} />
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="admin-pagination">
+              <button type="button" onClick={() => setPage((current) => Math.max(current - 1, 1))} disabled={page <= 1 || isLoading}>
+                <ChevronLeft size={16} />
+                Previous
+              </button>
+              <span>Page {pagination.page || page} of {pagination.totalPages || 1}</span>
+              <button
+                type="button"
+                onClick={() => setPage((current) => current + 1)}
+                disabled={isLoading || (pagination.page || page) >= (pagination.totalPages || 1)}
+              >
+                Next
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </section>
+        </main>
       </div>
 
-      {/* Slide-over backdrop */}
       {selectedInquiry && (
-        <div
+        <button
           className="admin-slide-backdrop"
+          type="button"
           onClick={() => setSelectedReference('')}
-          role="presentation"
+          aria-label="Close inquiry details"
         />
       )}
 
-      {/* Slide-over Detail Panel */}
-      <div className={`admin-slide-panel ${selectedInquiry ? 'open' : ''}`}>
+      <aside className={`admin-slide-panel ${selectedInquiry ? 'open' : ''}`} aria-label="Inquiry details">
         {selectedInquiry && (
           <>
             <div className="admin-slide-header">
               <div>
-                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--green-dark)', textTransform: 'uppercase' }}>
-                  {selectedInquiry.reference}
-                </span>
-                <h3 style={{ margin: '0.2rem 0 0', fontSize: '1.1rem' }}>
-                  {selectedInquiry.customer_name}
-                </h3>
+                <span>{selectedInquiry.reference}</span>
+                <h3>{selectedInquiry.customer_name || 'Unknown client'}</h3>
+                <p>{getInquirySubject(selectedInquiry)}</p>
               </div>
-              <button className="admin-slide-close" type="button" onClick={() => setSelectedReference('')}>
+              <button className="admin-slide-close" type="button" onClick={() => setSelectedReference('')} aria-label="Close details">
                 <X size={20} />
               </button>
             </div>
 
-            <div className="admin-slide-content" style={{ paddingRight: '1.25rem', boxSizing: 'border-box' }}>
+            <div className="admin-slide-content">
+              <section className="admin-detail-section">
+                <div className="admin-detail-title">
+                  <PhoneCall size={18} />
+                  <h4>Client</h4>
+                </div>
+                <div className="admin-detail-grid compact">
+                  <p><strong>Phone</strong><span>{selectedInquiry.customer_phone || 'Not provided'}</span></p>
+                  <p><strong>Status</strong><span className={getStatusClass(selectedInquiry.status)}>{INQUIRY_STATUS_LABELS[selectedInquiry.status]}</span></p>
+                  <p><strong>Cargo</strong><span>{selectedInquiry.cargo_type || 'General cargo'}</span></p>
+                  <p><strong>Weight</strong><span>{selectedInquiry.weight_kg ? `${selectedInquiry.weight_kg} kg` : 'Not set'}</span></p>
+                </div>
+                <div className="admin-detail-actions">
+                  <a href={`tel:${selectedInquiry.customer_phone || ''}`}>
+                    <PhoneCall size={15} />
+                    Call Client
+                  </a>
+                  <button type="button" onClick={rejectInquiry} disabled={isSaving || selectedInquiry.status === 'cancelled'}>
+                    <Ban size={15} />
+                    Reject
+                  </button>
+                </div>
+              </section>
 
-              {/* Quick Info */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', background: 'var(--soft)', borderRadius: '10px', padding: '1rem' }}>
-                <div>
-                  <small style={{ color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem' }}>Phone</small>
-                  <p style={{ margin: '0.2rem 0 0', fontWeight: 700 }}>{selectedInquiry.customer_phone}</p>
+              <section className="admin-detail-section">
+                <div className="admin-detail-title">
+                  <MapPin size={18} />
+                  <h4>Route</h4>
                 </div>
-                <div>
-                  <small style={{ color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem' }}>Status</small>
-                  <p style={{ margin: '0.2rem 0 0' }}>
-                    <strong className={getStatusClass(selectedInquiry.status)}>{INQUIRY_STATUS_LABELS[selectedInquiry.status]}</strong>
-                  </p>
+                <div className="admin-route-pair">
+                  <p><strong>Pickup</strong><span>{selectedInquiry.pickup_address || 'Pickup not set'}</span></p>
+                  <p><strong>Delivery</strong><span>{selectedInquiry.delivery_address || 'Delivery not set'}</span></p>
                 </div>
-                <div>
-                  <small style={{ color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem' }}>Cargo</small>
-                  <p style={{ margin: '0.2rem 0 0', fontWeight: 600 }}>{selectedInquiry.cargo_type || '—'}</p>
-                </div>
-                <div>
-                  <small style={{ color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem' }}>Weight</small>
-                  <p style={{ margin: '0.2rem 0 0', fontWeight: 600 }}>{selectedInquiry.weight_kg ? `${selectedInquiry.weight_kg} kg` : '—'}</p>
-                </div>
-                <div style={{ gridColumn: '1/-1' }}>
-                  <small style={{ color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem' }}>Pickup</small>
-                  <p style={{ margin: '0.2rem 0 0', fontWeight: 600 }}>{selectedInquiry.pickup_address}</p>
-                </div>
-                <div style={{ gridColumn: '1/-1' }}>
-                  <small style={{ color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem' }}>Delivery</small>
-                  <p style={{ margin: '0.2rem 0 0', fontWeight: 600 }}>{selectedInquiry.delivery_address}</p>
-                </div>
-              </div>
+                <AdminRouteTools inquiry={selectedInquiry} />
+              </section>
 
-              {/* Call & Reject actions */}
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
-                <a
-                  href={`tel:${selectedInquiry.customer_phone}`}
-                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.75rem', background: 'var(--ink)', color: '#fff', borderRadius: '10px', fontWeight: 700, textDecoration: 'none', fontSize: '0.9rem' }}
-                >
-                  <PhoneCall size={15} /> Call Client
-                </a>
+              <form className="admin-detail-section admin-update-form" onSubmit={saveInquiry}>
+                <div className="admin-detail-title">
+                  <ShieldCheck size={18} />
+                  <h4>Operations</h4>
+                </div>
+                <div className="admin-form-grid">
+                  <label>
+                    Status
+                    <select value={form.status} onChange={(event) => updateForm('status', event.target.value)}>
+                      {INQUIRY_STATUSES.map((item) => (
+                        <option key={item} value={item}>{INQUIRY_STATUS_LABELS[item]}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Assigned admin
+                    <select value={form.assignedAdminEmail} onChange={(event) => updateForm('assignedAdminEmail', event.target.value)}>
+                      <option value="">Unassigned</option>
+                      {payload.admins.map((admin) => (
+                        <option key={admin.email} value={admin.email}>{admin.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Quoted price
+                    <input type="number" min="0" step="0.01" value={form.quotedPrice} onChange={(event) => updateForm('quotedPrice', event.target.value)} placeholder="0.00" />
+                  </label>
+                  <label>
+                    Pickup schedule
+                    <input type="datetime-local" value={form.targetPickupDate} onChange={(event) => updateForm('targetPickupDate', event.target.value)} />
+                  </label>
+                  <label>
+                    Delivery schedule
+                    <input type="datetime-local" value={form.targetDeliveryDate} onChange={(event) => updateForm('targetDeliveryDate', event.target.value)} />
+                  </label>
+                  <label className="admin-notes-field">
+                    Internal notes
+                    <textarea value={form.adminNotes} onChange={(event) => updateForm('adminNotes', event.target.value)} rows="3" placeholder="Route notes, follow-up, port or ferry details..." />
+                  </label>
+                </div>
                 <button
-                  type="button"
-                  onClick={rejectInquiry}
-                  disabled={isSaving || selectedInquiry.status === 'cancelled'}
-                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.75rem', background: '#fff', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem' }}
-                >
-                  <Ban size={15} /> Reject
-                </button>
-              </div>
-
-              {/* Route Tools */}
-              <AdminRouteTools inquiry={selectedInquiry} />
-
-              {/* Update Form */}
-              <form className="admin-update-form" onSubmit={saveInquiry}>
-                <label>
-                  Status
-                  <select value={form.status} onChange={(event) => updateForm('status', event.target.value)}>
-                    {INQUIRY_STATUSES.map((item) => (
-                      <option key={item} value={item}>{INQUIRY_STATUS_LABELS[item]}</option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  Assigned admin
-                  <select value={form.assignedAdminEmail} onChange={(event) => updateForm('assignedAdminEmail', event.target.value)}>
-                    <option value="">Unassigned</option>
-                    {payload.admins.map((admin) => (
-                      <option key={admin.email} value={admin.email}>{admin.label}</option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  Quoted price
-                  <input type="number" min="0" step="0.01" value={form.quotedPrice} onChange={(event) => updateForm('quotedPrice', event.target.value)} placeholder="0.00" />
-                </label>
-
-                <label>
-                  Pickup schedule
-                  <input type="datetime-local" value={form.targetPickupDate} onChange={(event) => updateForm('targetPickupDate', event.target.value)} />
-                </label>
-
-                <label>
-                  Delivery schedule
-                  <input type="datetime-local" value={form.targetDeliveryDate} onChange={(event) => updateForm('targetDeliveryDate', event.target.value)} />
-                </label>
-
-                <label className="admin-notes-field">
-                  Internal notes
-                  <textarea value={form.adminNotes} onChange={(event) => updateForm('adminNotes', event.target.value)} rows="3" placeholder="Route notes, follow-up, port/ferry details..." />
-                </label>
-
-                {/* Driver Current Location Trigger */}
-                <button
+                  className={form.driverLat && form.driverLng ? 'admin-location-button active' : 'admin-location-button'}
                   type="button"
                   onClick={() => {
                     setLocationQuery(form.driverLocation || '');
@@ -616,94 +944,76 @@ function AdminDashboard({ session, profile, setSession }) {
                     setSelectedLocation(form.driverLat ? { lat: form.driverLat, lng: form.driverLng, label: form.driverLocation } : null);
                     setShowLocationModal(true);
                   }}
-                  style={{
-                    gridColumn: '1 / -1',
-                    background: form.driverLat && form.driverLng
-                      ? 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)'
-                      : 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-                    border: form.driverLat && form.driverLng ? '1px solid #86efac' : '1px solid var(--line)',
-                    borderRadius: '12px',
-                    padding: '1rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '1rem',
-                    cursor: 'pointer',
-                    width: '100%',
-                    textAlign: 'left',
-                    transition: 'opacity 0.2s',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
-                  onMouseLeave={e => e.currentTarget.style.opacity = '1'}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
-                    <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: form.driverLat ? '#16a34a' : '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <MapPin size={18} color="white" />
-                    </div>
-                    <div style={{ minWidth: 0 }}>
-                      <p style={{ margin: 0, fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: '0.05em' }}>Driver Location</p>
-                      <p style={{ margin: '0.1rem 0 0', fontWeight: 700, fontSize: '0.88rem', color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {form.driverLocation || 'Click to set location'}
-                      </p>
-                    </div>
+                  <span><MapPin size={18} /></span>
+                  <div>
+                    <strong>Manual driver location override</strong>
+                    <small>{form.driverLocation || 'Click to set manually'}</small>
                   </div>
                 </button>
-                </form>
-
-                {/* Fixed Save Button */}
-                <div style={{
-                  position: 'sticky',
-                  bottom: '-1.25rem',
-                  left: 0,
-                  right: 0,
-                  background: 'var(--bg)',
-                  padding: '1rem 0',
-                  marginTop: '0.5rem',
-                  borderTop: '1px solid var(--line)',
-                  zIndex: 50,
-                  display: 'flex',
-                  justifyContent: 'flex-end'
-                }}>
-                  <button 
-                    type="button" 
-                    onClick={saveInquiry}
-                    disabled={isSaving} 
-                    style={{ 
-                      width: '100%', 
-                      padding: '1rem', 
-                      fontSize: '0.95rem', 
-                      background: 'var(--ink)', 
-                      color: '#fff', 
-                      border: 'none', 
-                      borderRadius: '10px', 
-                      fontWeight: 800, 
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.5rem'
-                    }}
-                  >
+                <div className="admin-sticky-save">
+                  <button type="submit" disabled={isSaving}>
                     <ShieldCheck size={18} />
                     {isSaving ? 'Saving...' : 'Save Admin Update'}
                   </button>
                 </div>
+              </form>
 
-              {/* Live Route Map Preview */}
+              <section className="admin-detail-section">
+                <div className="admin-detail-title">
+                  <LinkIcon size={18} />
+                  <h4>Driver Tracking</h4>
+                </div>
+                {driverLink ? (
+                  <>
+                    <p className="admin-helper-text">Send this secure link to the driver to stream live GPS coordinates.</p>
+                    <div className="admin-copy-row">
+                      <input type="text" readOnly value={driverLink} />
+                      <button type="button" onClick={() => copyToClipboard(driverLink)}>
+                        <Copy size={14} />
+                        Copy
+                      </button>
+                    </div>
+                    <a className="admin-text-link" href={`/driver/track/${selectedInquiry.driver_tracking_token}`} target="_blank" rel="noreferrer">
+                      <ExternalLink size={12} />
+                      Test link as driver
+                    </a>
+                  </>
+                ) : (
+                  <>
+                    <p className="admin-helper-text">No tracking link exists yet. Generate a secure link to send to the assigned driver.</p>
+                    <button className="admin-generate-button" type="button" onClick={() => generateDriverLink(selectedInquiry.reference)} disabled={generatingLink}>
+                      {generatingLink ? 'Generating...' : 'Generate Tracking Link'}
+                    </button>
+                  </>
+                )}
+              </section>
+
               {selectedInquiry.pickup_lat && selectedInquiry.pickup_lng && selectedInquiry.delivery_lat && selectedInquiry.delivery_lng && (
-                <RouteDisplayMap
-                  pickup={{ lat: Number(selectedInquiry.pickup_lat), lng: Number(selectedInquiry.pickup_lng) }}
-                  delivery={{ lat: Number(selectedInquiry.delivery_lat), lng: Number(selectedInquiry.delivery_lng) }}
-                  status={form.status}
-                  driverLat={form.driverLat || selectedInquiry.driver_lat}
-                  driverLng={form.driverLng || selectedInquiry.driver_lng}
-                  driverLocation={form.driverLocation || selectedInquiry.driver_location}
-                  height="220px"
-                />
+                <section className="admin-detail-section">
+                  <div className="admin-detail-title">
+                    <Truck size={18} />
+                    <h4>Live Route Map</h4>
+                  </div>
+                  <RouteDisplayMap
+                    pickup={{ lat: Number(selectedInquiry.pickup_lat), lng: Number(selectedInquiry.pickup_lng) }}
+                    delivery={{ lat: Number(selectedInquiry.delivery_lat), lng: Number(selectedInquiry.delivery_lng) }}
+                    status={form.status}
+                    driverLat={form.driverLat || selectedInquiry.driver_lat}
+                    driverLng={form.driverLng || selectedInquiry.driver_lng}
+                    driverLocation={form.driverLocation || selectedInquiry.driver_location}
+                    driverAccuracy={selectedInquiry.driver_accuracy_m}
+                    driverSpeedKph={selectedInquiry.driver_speed_kph}
+                    driverHeading={selectedInquiry.driver_heading}
+                    driverUpdatedAt={selectedInquiry.driver_updated_at}
+                    driverTrackingActive={selectedInquiry.driver_tracking_active}
+                    inquiryReference={selectedInquiry.reference}
+                    height="220px"
+                  />
+                </section>
               )}
 
-              {/* Cargo Images */}
-              <div className="admin-images">
+              <section className="admin-detail-section admin-images">
                 <div className="admin-detail-title">
                   <ImageIcon size={18} />
                   <h4>Cargo images</h4>
@@ -728,165 +1038,132 @@ function AdminDashboard({ session, profile, setSession }) {
                 ) : (
                   <p className="admin-empty-note">No cargo images attached.</p>
                 )}
-              </div>
+              </section>
 
-              {/* Status History */}
-              <div className="admin-history">
+              <section className="admin-detail-section admin-history">
                 <div className="admin-detail-title">
-                  <Truck size={18} />
+                  <ClipboardList size={18} />
                   <h4>Status history</h4>
                 </div>
                 {(selectedInquiry.status_history || []).length === 0 ? (
                   <p>No status history yet.</p>
                 ) : (
                   selectedInquiry.status_history.map((item) => (
-                    <p key={item.id}><strong>{INQUIRY_STATUS_LABELS[item.status]}</strong> — {formatDate(item.created_at)}</p>
+                    <p key={item.id}><strong>{INQUIRY_STATUS_LABELS[item.status]}</strong><span>{formatDate(item.created_at)}</span></p>
                   ))
                 )}
-              </div>
+              </section>
 
-              {/* Danger Zone */}
-              <div style={{ borderTop: '1px solid var(--line)', paddingTop: '1rem' }}>
-                <button
-                  className={pendingDeleteReference === selectedInquiry.reference ? 'confirm' : ''}
-                  type="button"
-                  onClick={deleteInquiry}
-                  disabled={isSaving}
-                  style={{ width: '100%', padding: '0.75rem', borderRadius: '10px', background: pendingDeleteReference === selectedInquiry.reference ? '#dc2626' : '#fff', color: pendingDeleteReference === selectedInquiry.reference ? '#fff' : '#dc2626', border: '1px solid #fca5a5', fontWeight: 700, cursor: 'pointer' }}
-                >
-                  <Trash2 size={15} style={{ marginRight: '0.5rem', verticalAlign: 'middle' }} />
-                  {pendingDeleteReference === selectedInquiry.reference ? 'Confirm Delete' : 'Delete Inquiry'}
+              <section className="admin-detail-section admin-danger-zone">
+                <div>
+                  <strong>Danger zone</strong>
+                  <span>Deleting removes this inquiry record permanently.</span>
+                </div>
+                <button type="button" onClick={() => setDeleteTarget(selectedInquiry)} disabled={isSaving}>
+                  <Trash2 size={15} />
+                  Delete Inquiry
                 </button>
-              </div>
-
+              </section>
             </div>
           </>
         )}
-      </div>
-      {/* Driver Location Modal */}
-      {showLocationModal && (
-        <>
-          {/* Backdrop */}
-          <div
-            onClick={() => setShowLocationModal(false)}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', zIndex: 2000 }}
-          />
+      </aside>
 
-          {/* Modal */}
-          <div style={{
-            position: 'fixed',
-            top: '50%', left: '50%',
-            transform: 'translate(-50%, -50%)',
-            zIndex: 2001,
-            width: '100%',
-            maxWidth: '520px',
-            background: '#fff',
-            borderRadius: '20px',
-            boxShadow: '0 25px 60px rgba(0,0,0,0.2)',
-            overflow: 'hidden',
-          }}>
-            {/* Modal Header */}
-            <div style={{ padding: '1.5rem 1.5rem 1rem', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'linear-gradient(135deg, #16a34a, #15803d)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <MapPin size={20} color="white" />
-                </div>
+      {deleteTarget && (
+        <div className="admin-modal-backdrop" role="presentation">
+          <div className="admin-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="admin-delete-title">
+            <div className="admin-confirm-icon">
+              <Trash2 size={22} />
+            </div>
+            <h3 id="admin-delete-title">Delete inquiry?</h3>
+            <p>
+              This will permanently remove <strong>{deleteTarget.reference}</strong> for <strong>{deleteTarget.customer_name || 'Unknown client'}</strong>.
+            </p>
+            <div className="admin-confirm-actions">
+              <button type="button" onClick={() => setDeleteTarget(null)} disabled={isSaving}>Cancel</button>
+              <button type="button" className="danger" onClick={confirmDeleteInquiry} disabled={isSaving}>
+                {isSaving ? 'Deleting...' : 'Delete permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLocationModal && (
+        <div className="admin-modal-backdrop" role="presentation">
+          <div className="admin-location-modal" role="dialog" aria-modal="true" aria-labelledby="admin-location-title">
+            <div className="admin-modal-header">
+              <div>
+                <span><MapPin size={20} /></span>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>Update Driver Location</h3>
-                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--muted)' }}>Search for the driver's current position</p>
+                  <h3 id="admin-location-title">Update driver location</h3>
+                  <p>Search for the driver's current position in the Philippines.</p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowLocationModal(false)}
-                style={{ background: 'var(--soft)', border: 'none', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--muted)' }}
-              >
+              <button type="button" onClick={() => setShowLocationModal(false)} aria-label="Close location picker">
                 <X size={18} />
               </button>
             </div>
 
-            {/* Search Box */}
-            <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--line)' }}>
-              <div style={{ position: 'relative' }}>
-                <Search size={16} style={{ position: 'absolute', left: '0.9rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
-                <input
-                  autoFocus
-                  value={locationQuery}
-                  onChange={(e) => {
-                    setLocationQuery(e.target.value);
-                    if (selectedLocation) setSelectedLocation(null);
-                  }}
-                  placeholder="Type a city, municipality, or barangay..."
-                  style={{ width: '100%', padding: '0.75rem 0.75rem 0.75rem 2.5rem', borderRadius: '12px', border: '1.5px solid var(--line)', fontSize: '0.95rem', boxSizing: 'border-box', outline: 'none' }}
-                />
-                {locationSearching && (
-                  <Loader2 size={16} style={{ position: 'absolute', right: '0.9rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', animation: 'spin 1s linear infinite' }} />
-                )}
-              </div>
-            </div>
+            <label className="admin-location-search">
+              <Search size={16} />
+              <input
+                autoFocus
+                value={locationQuery}
+                onChange={(event) => {
+                  setLocationQuery(event.target.value);
+                  if (selectedLocation) {
+                    setSelectedLocation(null);
+                  }
+                }}
+                placeholder="Type a city, municipality, or barangay..."
+              />
+              {locationSearching && <Loader2 size={16} className="spinning" />}
+            </label>
 
-            {/* Suggestions */}
             {locationSuggestions.length > 0 && !selectedLocation && (
-              <div style={{ maxHeight: '250px', overflowY: 'auto', borderBottom: '1px solid var(--line)' }}>
-                {locationSuggestions.map((item, idx) => (
+              <div className="admin-location-suggestions">
+                {locationSuggestions.map((item) => (
                   <button
-                    key={idx}
+                    key={`${item.lat}-${item.lon}-${item.display_name}`}
                     type="button"
                     onClick={() => {
                       setSelectedLocation({ lat: item.lat, lng: item.lon, label: item.display_name });
                       setLocationQuery(item.display_name);
                       setLocationSuggestions([]);
                     }}
-                    style={{ width: '100%', padding: '0.9rem 1.5rem', textAlign: 'left', border: 'none', borderBottom: '1px solid var(--soft)', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: '0.75rem', transition: 'background 0.15s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#f0fdf4'}
-                    onMouseLeave={e => e.currentTarget.style.background = '#fff'}
                   >
-                    <MapPin size={15} style={{ color: '#16a34a', marginTop: '2px', flexShrink: 0 }} />
-                    <div>
-                      <strong style={{ fontSize: '0.88rem', color: 'var(--ink)', display: 'block', lineHeight: 1.3 }}>
-                        {item.address?.city || item.address?.town || item.address?.municipality || item.address?.county || item.address?.state || item.display_name.split(',')[0]}
-                      </strong>
-                      <small style={{ color: 'var(--muted)', fontSize: '0.76rem', lineHeight: 1.4 }}>
-                        {item.display_name}
-                      </small>
-                    </div>
+                    <MapPin size={15} />
+                    <span>
+                      <strong>{item.address?.city || item.address?.town || item.address?.municipality || item.address?.county || item.address?.state || item.display_name.split(',')[0]}</strong>
+                      <small>{item.display_name}</small>
+                    </span>
                   </button>
                 ))}
               </div>
             )}
 
-            {/* Selected Location Preview */}
             {selectedLocation && (
-              <div style={{ padding: '1rem 1.5rem', background: '#f0fdf4', borderBottom: '1px solid #86efac', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <MapPin size={16} color="white" />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ margin: 0, fontWeight: 700, fontSize: '0.85rem', color: '#15803d' }}>📍 Location selected</p>
-                  <p style={{ margin: '0.1rem 0 0', fontSize: '0.78rem', color: '#166534', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {selectedLocation.label}
-                  </p>
-                  <p style={{ margin: '0.1rem 0 0', fontSize: '0.72rem', color: '#4ade80', fontFamily: 'monospace' }}>
-                    {Number(selectedLocation.lat).toFixed(5)}, {Number(selectedLocation.lng).toFixed(5)}
-                  </p>
+              <div className="admin-selected-location">
+                <MapPin size={18} />
+                <div>
+                  <strong>Location selected</strong>
+                  <span>{selectedLocation.label}</span>
+                  <small>{Number(selectedLocation.lat).toFixed(5)}, {Number(selectedLocation.lng).toFixed(5)}</small>
                 </div>
               </div>
             )}
 
-            {/* Confirm Button */}
-            <div style={{ padding: '1.25rem 1.5rem', display: 'flex', gap: '0.75rem' }}>
+            <div className="admin-confirm-actions">
+              <button type="button" onClick={() => setShowLocationModal(false)}>Cancel</button>
               <button
                 type="button"
-                onClick={() => setShowLocationModal(false)}
-                style={{ flex: 1, padding: '0.85rem', borderRadius: '12px', border: '1.5px solid var(--line)', background: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem', color: 'var(--muted)' }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={!selectedLocation}
+                className="confirm"
+                disabled={!selectedLocation || isSavingLocation}
                 onClick={async () => {
-                  if (!selectedLocation || !selectedInquiry || !session?.access_token) return;
+                  if (!selectedLocation || !selectedInquiry || !session?.access_token) {
+                    return;
+                  }
 
                   const nextForm = {
                     ...form,
@@ -895,67 +1172,46 @@ function AdminDashboard({ session, profile, setSession }) {
                     driverLng: selectedLocation.lng,
                   };
 
-                  // Keep isDirty true — block all background resets until we are done
                   isDirtyRef.current = true;
                   setIsSavingLocation(true);
-
-                  // Update local form immediately so the UI doesn't flicker
                   setForm(nextForm);
                   setShowLocationModal(false);
 
                   try {
-                    const result = await updateAdminInquiry(
-                      session.access_token,
-                      selectedInquiry.reference,
-                      nextForm,
-                    );
-
-                    // Patch the local payload directly with the server's returned inquiry.
-                    // This avoids calling loadDashboard which triggers a realtime chain
-                    // that could fire another form reset before isDirtyRef is cleared.
-                    if (result?.inquiry) {
-                      setPayload((prev) => ({
-                        ...prev,
-                        inquiries: prev.inquiries.map((inq) =>
-                          inq.reference === selectedInquiry.reference ? { ...inq, ...result.inquiry } : inq
-                        ),
-                      }));
-                    }
-
-                    setStatus('Driver location saved.');
+                    const result = await updateAdminInquiry(session.access_token, selectedInquiry.reference, nextForm);
+                    patchInquiryInPayload(selectedInquiry.reference, result?.inquiry);
+                    addToast('success', 'Driver location saved.');
                   } catch (saveErr) {
-                    setStatus(`Could not save driver location: ${saveErr.message}`);
+                    addToast('error', saveErr.message || 'Could not save driver location.');
                   } finally {
-                    // Clear dirty LAST — after all state updates are queued
                     isDirtyRef.current = false;
                     setIsSavingLocation(false);
                   }
                 }}
-                style={{
-                  flex: 2,
-                  padding: '0.85rem',
-                  borderRadius: '12px',
-                  border: 'none',
-                  background: selectedLocation ? 'linear-gradient(135deg, #16a34a, #15803d)' : '#e2e8f0',
-                  color: selectedLocation ? '#fff' : '#94a3b8',
-                  fontWeight: 800,
-                  cursor: (selectedLocation && !isSavingLocation) ? 'pointer' : 'not-allowed',
-                  fontSize: '0.9rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.5rem',
-                  transition: 'background 0.2s',
-                  opacity: isSavingLocation ? 0.7 : 1,
-                }}
               >
-                <MapPin size={15} />
                 Confirm Location
               </button>
             </div>
           </div>
-        </>
+        </div>
       )}
+
+      <div className="toast-container" aria-live="polite" aria-atomic="true">
+        {toasts.map((toast) => (
+          <div className={`toast toast-${toast.type}`} key={toast.id}>
+            <ToastIcon type={toast.type} />
+            <span>{toast.message}</span>
+            <button
+              className="toast-close"
+              type="button"
+              onClick={() => setToasts((current) => current.filter((item) => item.id !== toast.id))}
+              aria-label="Dismiss notification"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

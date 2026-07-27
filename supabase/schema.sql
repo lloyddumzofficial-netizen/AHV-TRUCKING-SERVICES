@@ -47,6 +47,12 @@ alter table public.inquiries add column if not exists updated_by uuid references
 alter table public.inquiries add column if not exists driver_location text;
 alter table public.inquiries add column if not exists driver_lat double precision;
 alter table public.inquiries add column if not exists driver_lng double precision;
+alter table public.inquiries add column if not exists driver_accuracy_m double precision;
+alter table public.inquiries add column if not exists driver_speed_kph double precision;
+alter table public.inquiries add column if not exists driver_heading double precision;
+alter table public.inquiries add column if not exists driver_updated_at timestamptz;
+alter table public.inquiries add column if not exists driver_tracking_active boolean not null default false;
+alter table public.inquiries add column if not exists driver_tracking_token uuid unique;
 
 create index if not exists idx_inquiries_assigned_admin_id on public.inquiries(assigned_admin_id);
 create index if not exists idx_inquiries_assigned_admin_email on public.inquiries(assigned_admin_email);

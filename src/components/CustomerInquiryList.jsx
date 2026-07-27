@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Check, ClipboardList, ClipboardCopy, Loader2, MapPin, RefreshCw, Route, Save, Search, X } from 'lucide-react';
+import { Check, ClipboardList, ClipboardCopy, MapPin, RefreshCw, Route, Save, Search, X } from 'lucide-react';
 import { INQUIRY_STATUS_HELP, INQUIRY_STATUS_LABELS } from '../data/inquiryStatus.js';
 import { getInquiries, updateInquiryLocations } from '../lib/inquiries/api.js';
 import { calculateDistanceKm } from '../lib/inquiries/distance.js';
@@ -158,6 +158,7 @@ function CustomerInquiryCard({ inquiry, session, showTimeline = false, onSaved }
   const deliveryPoint = { lat: Number(inquiry.delivery_lat), lng: Number(inquiry.delivery_lng) };
   const currentStepIndex = visibleSteps.includes(inquiryStatus) ? visibleSteps.indexOf(inquiryStatus) : 0;
   const [isCorrectingLocation, setIsCorrectingLocation] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const [copied, setCopied] = useState(false);
   const canCorrectLocation = showTimeline && CORRECTABLE_STATUSES.includes(inquiryStatus);
 
@@ -199,78 +200,113 @@ function CustomerInquiryCard({ inquiry, session, showTimeline = false, onSaved }
       <p>{INQUIRY_STATUS_HELP[inquiryStatus] || 'AHV is reviewing your request.'}</p>
       <em>Latest update: {formatInquiryDate(latestHistory?.created_at || inquiry.updated_at || inquiry.created_at)}</em>
 
-      {showTimeline && (
-        <div className="customer-location-note">
-          <MapPin size={16} />
-          <span>
-            {canCorrectLocation
-              ? 'Wrong pickup or delivery? You can still correct it before quote/schedule.'
-              : 'Location changes are locked for this stage. Contact AHV admin if this needs correction.'}
-          </span>
-        </div>
-      )}
-
-      {canCorrectLocation && !isCorrectingLocation && (
-        <button className="location-correction-toggle" type="button" onClick={() => setIsCorrectingLocation(true)}>
-          <MapPin size={16} />
-          Correct pickup/delivery
+      <div className="customer-map-toggle-container">
+        <button 
+          type="button" 
+          className="customer-map-toggle-btn"
+          onClick={() => setShowDetails(!showDetails)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '100%',
+            padding: '0.75rem',
+            marginTop: '1rem',
+            background: 'var(--soft)',
+            border: '1px solid var(--line)',
+            borderRadius: '8px',
+            color: 'var(--ink)',
+            fontWeight: '600',
+            cursor: 'pointer',
+          }}
+        >
+          <span>{showDetails ? 'Hide Details' : 'View Full Details & Map'}</span>
+          <span style={{ transform: showDetails ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</span>
         </button>
-      )}
 
-      {isCorrectingLocation && (
-        <LocationCorrectionForm
-          inquiry={inquiry}
-          session={session}
-          onCancel={() => setIsCorrectingLocation(false)}
-          onSaved={onSaved}
-        />
-      )}
-
-      {showTimeline && (
-        <>
-          <div className="customer-lifecycle-strip" aria-label="Inquiry progress">
-            {visibleSteps.map((step, index) => (
-              <span key={step} className={index <= currentStepIndex ? 'active' : ''}>
-                {INQUIRY_STATUS_LABELS[step]}
-              </span>
-            ))}
-          </div>
-
-          <div className="customer-status-timeline">
-            {timeline.map((item) => (
-              <div key={item.id || `${item.status}-${item.created_at}`}>
-                <span />
-                <strong>{INQUIRY_STATUS_LABELS[item.status] || item.status}</strong>
-                <small>{formatInquiryDate(item.created_at)}</small>
-                {item.notes && <p>{item.notes}</p>}
+        {showDetails && (
+          <div className="customer-details-collapse" style={{ marginTop: '1rem', display: 'grid', gap: '1rem' }}>
+            {showTimeline && (
+              <div className="customer-location-note">
+                <MapPin size={16} />
+                <span>
+                  {canCorrectLocation
+                    ? 'Wrong pickup or delivery? You can still correct it before quote/schedule.'
+                    : 'Location changes are locked for this stage. Contact AHV admin if this needs correction.'}
+                </span>
               </div>
-            ))}
+            )}
+
+            {canCorrectLocation && !isCorrectingLocation && (
+              <button className="location-correction-toggle" type="button" onClick={() => setIsCorrectingLocation(true)}>
+                <MapPin size={16} />
+                Correct pickup/delivery
+              </button>
+            )}
+
+            {isCorrectingLocation && (
+              <LocationCorrectionForm
+                inquiry={inquiry}
+                session={session}
+                onCancel={() => setIsCorrectingLocation(false)}
+                onSaved={onSaved}
+              />
+            )}
+
+            {showTimeline && (
+              <>
+                <div className="customer-lifecycle-strip" aria-label="Inquiry progress">
+                  {visibleSteps.map((step, index) => (
+                    <span key={step} className={index <= currentStepIndex ? 'active' : ''}>
+                      {INQUIRY_STATUS_LABELS[step]}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="customer-status-timeline">
+                  {timeline.map((item) => (
+                    <div key={item.id || `${item.status}-${item.created_at}`}>
+                      <span />
+                      <strong>{INQUIRY_STATUS_LABELS[item.status] || item.status}</strong>
+                      <small>{formatInquiryDate(item.created_at)}</small>
+                      {item.notes && <p>{item.notes}</p>}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <RouteDisplayMap
+              pickup={pickupPoint}
+              delivery={deliveryPoint}
+              status={inquiryStatus}
+              driverLat={inquiry.driver_lat}
+              driverLng={inquiry.driver_lng}
+              driverLocation={inquiry.driver_location}
+              driverAccuracy={inquiry.driver_accuracy_m}
+              driverSpeedKph={inquiry.driver_speed_kph}
+              driverHeading={inquiry.driver_heading}
+              driverUpdatedAt={inquiry.driver_updated_at}
+              driverTrackingActive={inquiry.driver_tracking_active}
+              inquiryReference={inquiry.reference}
+              height="280px"
+            />
+
+            {showTimeline && Number(inquiry.quoted_price) > 0 && (
+              <div className="customer-quote-box">
+                <span>Quoted price</span>
+                <strong>
+                  {new Intl.NumberFormat('en-PH', {
+                    style: 'currency',
+                    currency: 'PHP',
+                    maximumFractionDigits: 0,
+                  }).format(Number(inquiry.quoted_price))}
+                </strong>
+              </div>
+            )}
           </div>
-        </>
-      )}
-
-      <RouteDisplayMap
-        pickup={pickupPoint}
-        delivery={deliveryPoint}
-        status={inquiryStatus}
-        driverLat={inquiry.driver_lat}
-        driverLng={inquiry.driver_lng}
-        driverLocation={inquiry.driver_location}
-        height="280px"
-      />
-
-      {showTimeline && Number(inquiry.quoted_price) > 0 && (
-        <div className="customer-quote-box">
-          <span>Quoted price</span>
-          <strong>
-            {new Intl.NumberFormat('en-PH', {
-              style: 'currency',
-              currency: 'PHP',
-              maximumFractionDigits: 0,
-            }).format(Number(inquiry.quoted_price))}
-          </strong>
-        </div>
-      )}
+        )}
+      </div>
     </article>
   );
 }
@@ -281,6 +317,7 @@ function CustomerInquiryList({
   eyebrow = 'My inquiries',
   limit = 20,
   reference = '',
+  statusFilter = 'all',
   compact = false,
   onStartInquiry,
 }) {
@@ -352,16 +389,26 @@ function CustomerInquiryList({
   }, [loadInquiries, session?.access_token]);
 
   const visibleInquiries = useMemo(() => {
+    let filteredInquiries = inquiries;
+
+    if (statusFilter === 'active') {
+      filteredInquiries = filteredInquiries.filter((inquiry) => !['delivered', 'completed', 'cancelled'].includes(inquiry.status || 'new'));
+    }
+
+    if (statusFilter === 'completed') {
+      filteredInquiries = filteredInquiries.filter((inquiry) => ['delivered', 'completed'].includes(inquiry.status || 'new'));
+    }
+
     if (reference || !search.trim()) {
-      return inquiries;
+      return filteredInquiries;
     }
 
     const normalizedSearch = search.trim().toLowerCase();
-    return inquiries.filter((inquiry) => [inquiry.reference, inquiry.pickup_address, inquiry.delivery_address, inquiry.cargo_type]
+    return filteredInquiries.filter((inquiry) => [inquiry.reference, inquiry.pickup_address, inquiry.delivery_address, inquiry.cargo_type]
       .join(' ')
       .toLowerCase()
       .includes(normalizedSearch));
-  }, [inquiries, reference, search]);
+  }, [inquiries, reference, search, statusFilter]);
 
   if (!session) {
     return (
@@ -407,18 +454,35 @@ function CustomerInquiryList({
         </label>
       )}
 
-      {status && (
+      {status && !isLoading && (
         <p className="submit-status">
-          {isLoading && <Loader2 size={15} />}
           {status}
         </p>
       )}
 
-      {visibleInquiries.length === 0 && !isLoading ? (
-        <div className="customer-empty-state-block">
-          <p className="customer-empty-state">No inquiries found yet.</p>
+      {isLoading ? (
+        <div className="recent-list">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="skeleton-card skeleton-pulse">
+              <div className="skeleton-header skeleton-pulse" />
+              <div className="skeleton-title skeleton-pulse" />
+              <div className="skeleton-line skeleton-pulse" />
+              <div className="skeleton-line short skeleton-pulse" />
+              <div className="skeleton-button skeleton-pulse" />
+            </div>
+          ))}
+        </div>
+      ) : visibleInquiries.length === 0 ? (
+        <div className="premium-empty-state">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+          </svg>
+          <h3>No inquiries found</h3>
+          <p>You haven't requested any truck services yet. Get a fast quote by starting your first inquiry today.</p>
           {onStartInquiry && (
-            <button type="button" className="empty-state-cta" onClick={onStartInquiry}>
+            <button type="button" onClick={onStartInquiry}>
               Start your first inquiry
             </button>
           )}
