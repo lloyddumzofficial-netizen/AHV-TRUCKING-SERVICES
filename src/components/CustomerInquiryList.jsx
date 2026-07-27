@@ -327,14 +327,16 @@ function CustomerInquiryList({
   const [isLoading, setIsLoading] = useState(false);
   const supabase = getSupabaseBrowserClient();
 
-  const loadInquiries = useCallback(async () => {
+  const loadInquiries = useCallback(async ({ quiet = false } = {}) => {
     if (!session?.access_token) {
       setInquiries([]);
       return;
     }
 
-    setIsLoading(true);
-    setStatus('Loading your inquiries...');
+    if (!quiet) {
+      setIsLoading(true);
+      setStatus('Loading your inquiries...');
+    }
 
     try {
       const data = await getInquiries(session.access_token, {
@@ -342,11 +344,11 @@ function CustomerInquiryList({
         reference,
       });
       setInquiries(Array.isArray(data.inquiries) ? data.inquiries : []);
-      setStatus('');
+      if (!quiet) setStatus('');
     } catch (loadError) {
       setStatus(loadError.message);
     } finally {
-      setIsLoading(false);
+      if (!quiet) setIsLoading(false);
     }
   }, [limit, reference, session?.access_token]);
 
@@ -363,7 +365,7 @@ function CustomerInquiryList({
     const refreshInquiries = () => {
       window.clearTimeout(refreshTimer);
       refreshTimer = window.setTimeout(() => {
-        loadInquiries();
+        loadInquiries({ quiet: true });
       }, 350);
     };
 
@@ -383,7 +385,7 @@ function CustomerInquiryList({
   useEffect(() => {
     if (!session?.access_token) return undefined;
     const interval = window.setInterval(() => {
-      loadInquiries();
+      loadInquiries({ quiet: true });
     }, 30000);
     return () => window.clearInterval(interval);
   }, [loadInquiries, session?.access_token]);
