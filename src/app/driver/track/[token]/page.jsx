@@ -27,6 +27,8 @@ const HEARTBEAT_MS = 15000;
 const RETRY_MS = 5000;
 // Max consecutive send failures before showing a strong warning
 const MAX_FAIL_BEFORE_WARN = 3;
+// Message shown in browser "leave page?" dialog
+const LEAVE_WARNING = 'GPS tracking is still ON. If you leave, your location will stop being shared with the customer. Are you sure?';
 
 function formatCoordinate(value) {
   return Number.isFinite(Number(value)) ? Number(value).toFixed(5) : 'Waiting…';
@@ -301,6 +303,20 @@ export default function DriverTrackingPage({ params }) {
   }, [releaseWakeLock]);
 
   // ------------------------------------------------------------------
+  // Warn driver before leaving/closing page while tracking is active
+  // ------------------------------------------------------------------
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (!isTrackingRef.current) return;
+      e.preventDefault();
+      e.returnValue = LEAVE_WARNING; // required for Chrome
+      return LEAVE_WARNING;
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
+  // ------------------------------------------------------------------
   // Error screen
   // ------------------------------------------------------------------
   if (error) {
@@ -332,6 +348,31 @@ export default function DriverTrackingPage({ params }) {
   return (
     <main className="driver-tracking-page">
       <section className="driver-tracking-card">
+
+        {/* Sticky DO NOT LEAVE banner — only when tracking */}
+        {isTracking && (
+          <div style={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 999,
+            background: '#dc2626',
+            color: '#fff',
+            padding: '10px 14px',
+            borderRadius: '10px',
+            marginBottom: '0.75rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            fontWeight: '700',
+            fontSize: '0.88rem',
+            boxShadow: '0 4px 12px rgba(220,38,38,0.35)',
+            animation: 'pulseBorder 2s ease-in-out infinite',
+          }}>
+            <Radio size={18} style={{ flexShrink: 0, animation: 'pulseGps 1.2s infinite' }} />
+            <span>🔴 GPS LIVE — Huwag mag-back o mag-close ng browser! Mawawala ang tracking.</span>
+          </div>
+        )}
+
         <div className="driver-track-header">
           <div>
             <span>AHV Driver GPS</span>
