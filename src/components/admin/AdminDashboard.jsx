@@ -516,6 +516,7 @@ function AdminDashboard({ session, profile, setSession }) {
       setGeneratingLink(true);
       const res = await fetch(`/api/admin/inquiries/${reference}/driver-link`, {
         method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}` },
       });
 
       let data = {};
