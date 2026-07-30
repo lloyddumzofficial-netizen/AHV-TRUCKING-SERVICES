@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { enforceIpRateLimit } from '../../../../lib/security/rateLimit.js';
 
 const NOMINATIM_SEARCH_URL = 'https://nominatim.openstreetmap.org/search';
 const GOOGLE_TEXT_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchText';
@@ -106,6 +107,11 @@ async function searchOpenStreetMap(query) {
 }
 
 export async function GET(request) {
+  // Debounced type-ahead: ~1 request per keystroke burst per user is normal,
+  // so 40/min is generous for a human and stops a scripted quota drain.
+  const limited = enforceIpRateLimit(request, 'places-search', { limit: 40, windowMs: 60000 });
+  if (limited) return limited;
+
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q')?.trim();
 

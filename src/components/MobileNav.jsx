@@ -11,7 +11,7 @@ export default function MobileNav({ currentView, onNavigate }) {
   ];
 
   return (
-    <nav className="mobile-bottom-nav">
+    <nav className="mobile-bottom-nav" aria-label="Primary">
       {navItems.map((item) => {
         const isActive = currentView === item.id;
         return (
@@ -20,6 +20,9 @@ export default function MobileNav({ currentView, onNavigate }) {
             className={`mobile-nav-item ${isActive ? 'active' : ''}`}
             onClick={() => onNavigate(item.id)}
             type="button"
+            // The active state was a colour change only, which conveys nothing to
+            // a screen reader and fails contrast-independence.
+            aria-current={isActive ? 'page' : undefined}
           >
             <item.icon size={22} className="nav-icon" />
             <span>{item.label}</span>

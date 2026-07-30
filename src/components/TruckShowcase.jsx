@@ -12,7 +12,7 @@ function TruckShowcase({ fleet = [], lanes = [], onInquire }) {
           </p>
         </div>
         {onInquire && (
-          <button type="button" onClick={onInquire} style={{ alignSelf: 'flex-start', background: 'var(--ink)', color: '#fff', border: 'none', padding: '0.85rem 1.5rem', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
+          <button type="button" onClick={onInquire} className="fleet-inquire-button">
             Inquire Delivery
           </button>
         )}
@@ -22,8 +22,8 @@ function TruckShowcase({ fleet = [], lanes = [], onInquire }) {
         {fleet.map((truck) => (
           <div key={truck.id} className="fleet-card">
             {truck.image && (
-              <div className="fleet-card-image" style={{ margin: '-1.25rem -1.25rem 1rem', borderRadius: '16px 16px 0 0', overflow: 'hidden', height: '200px', background: 'var(--soft)' }}>
-                <img src={truck.image} alt={truck.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <div className="fleet-card-image">
+                <img src={truck.image} alt={truck.name} />
               </div>
             )}
             <div className="fleet-card-header">
@@ -67,14 +67,14 @@ function TruckShowcase({ fleet = [], lanes = [], onInquire }) {
         ))}
       </div>
 
-      <div className="fleet-lanes" style={{ marginTop: '4rem', padding: '2rem', background: 'var(--soft-green)', borderRadius: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem', color: 'var(--ink)' }}>
-          <MapPin size={24} color="var(--green)" />
-          <h3 style={{ margin: 0 }}>Common Service Lanes</h3>
+      <div className="fleet-lanes">
+        <div className="fleet-lanes-head">
+          <MapPin size={24} />
+          <h3>Common Service Lanes</h3>
         </div>
-        <div className="lane-list" aria-label="Common service lanes" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
+        <div className="lane-list" aria-label="Common service lanes">
           {lanes.map((lane) => (
-            <span key={lane} style={{ background: '#fff', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(22, 163, 74, 0.2)', fontSize: '0.95rem', fontWeight: '500' }}>
+            <span key={lane} className="lane-chip">
               {lane}
             </span>
           ))}

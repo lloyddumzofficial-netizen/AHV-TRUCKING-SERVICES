@@ -12,12 +12,35 @@ export async function getInquiries(accessToken, filters = {}) {
   const queryString = params.toString();
   const response = await fetch(`/api/inquiries${queryString ? `?${queryString}` : ''}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
+    credentials: 'omit',
     cache: 'no-store',
   });
   const payload = await response.json();
 
   if (!response.ok) {
     throw new Error(payload.error || 'Could not load inquiries.');
+  }
+
+  return payload;
+}
+
+/**
+ * Whether the signed-in user may submit an inquiry right now.
+ *
+ * Call this before uploading cargo photos: the cooldown and active-inquiry cap
+ * were previously only discovered from POST /api/inquiries, which runs after the
+ * upload, leaving orphaned objects in R2 on a 429.
+ */
+export async function getInquiryQuota(accessToken) {
+  const response = await fetch('/api/inquiries/quota', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    credentials: 'omit',
+    cache: 'no-store',
+  });
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload.error || 'Could not check your submission limit.');
   }
 
   return payload;
@@ -30,6 +53,7 @@ export async function createInquiry(accessToken, inquiry) {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
+    credentials: 'omit',
     body: JSON.stringify(inquiry),
   });
   const payload = await response.json();
@@ -48,6 +72,7 @@ export async function updateInquiryLocations(accessToken, reference, locations) 
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
+    credentials: 'omit',
     body: JSON.stringify({
       reference,
       ...locations,
@@ -76,6 +101,7 @@ export async function uploadCargoImages(accessToken, reference, images) {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
+      credentials: 'omit',
       body: formData,
     });
     const payload = await response.json();

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
-import { ImagePlus, MapPin, Phone, Save, UserRound } from 'lucide-react';
+import { ImagePlus, Save, UserRound } from 'lucide-react';
 import { isProfileComplete, saveProfile, uploadProfilePhoto } from '../../lib/profile/api.js';
+import { getSupabaseBrowserClient } from '../../lib/supabase/client.js';
 
 const INITIAL_PROFILE_FORM = {
   fullName: '',
@@ -10,15 +11,23 @@ const INITIAL_PROFILE_FORM = {
   location: '',
 };
 
-function ProfileOnboarding({ session, profile, setProfile }) {
+function ProfileOnboarding({ session, profile, setProfile, setSession }) {
   const [form, setForm] = useState(INITIAL_PROFILE_FORM);
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState('');
   const [status, setStatus] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const completed = isProfileComplete(profile);
 
+  const userId = session?.user?.id;
+  const metadataName = session?.user?.user_metadata?.full_name;
+
+  // Keyed on the user id, not the `session` object. `session` gets a new identity
+  // on every onAuthStateChange event — including the hourly TOKEN_REFRESHED — and
+  // this effect resets `form`, so a user halfway through typing their name and
+  // phone had it silently wiped back to the persisted values.
   useEffect(() => {
-    if (!session?.access_token) {
+    if (!userId) {
       setForm(INITIAL_PROFILE_FORM);
       setPhotoFile(null);
       setPhotoPreview('');
@@ -27,12 +36,18 @@ function ProfileOnboarding({ session, profile, setProfile }) {
 
     setStatus('');
     setForm({
-      fullName: profile?.full_name || session.user.user_metadata?.full_name || '',
+      fullName: profile?.full_name || metadataName || '',
       phone: profile?.phone || '',
       location: profile?.location || '',
     });
     setPhotoPreview(profile?.profile_image_url || '');
-  }, [profile, session]);
+  }, [userId, metadataName, profile?.full_name, profile?.phone, profile?.location, profile?.profile_image_url]);
+
+  // URL.createObjectURL leaks until revoked.
+  useEffect(() => {
+    if (!photoPreview.startsWith('blob:')) return undefined;
+    return () => URL.revokeObjectURL(photoPreview);
+  }, [photoPreview]);
 
   useEffect(() => {
     const shouldLockPage = Boolean(session && !completed);
@@ -72,19 +87,38 @@ function ProfileOnboarding({ session, profile, setProfile }) {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    // Without this guard a double tap uploads the photo twice.
+    if (isSaving) return;
+
+    setIsSaving(true);
     setStatus('Saving profile...');
 
     try {
+      const supabase = getSupabaseBrowserClient();
+      const refreshResult = supabase ? await supabase.auth.refreshSession() : null;
+      const sessionResult = supabase && !refreshResult?.data?.session
+        ? await supabase.auth.getSession()
+        : null;
+      const activeSession = refreshResult?.data?.session || sessionResult?.data?.session || session;
+      const accessToken = activeSession?.access_token;
+      const sessionError = refreshResult?.error || sessionResult?.error;
+
+      if (sessionError || !accessToken) {
+        throw new Error('Your login session expired. Please sign in again before saving your profile.');
+      }
+
+      setSession?.(activeSession);
+
       let uploadedPhoto = {
         key: profile?.profile_image_key || '',
         publicUrl: profile?.profile_image_url || '',
       };
 
       if (photoFile) {
-        uploadedPhoto = await uploadProfilePhoto(session.access_token, photoFile);
+        uploadedPhoto = await uploadProfilePhoto(accessToken, photoFile);
       }
 
-      const savedProfile = await saveProfile(session.access_token, {
+      const savedProfile = await saveProfile(accessToken, {
         fullName: form.fullName,
         phone: form.phone,
         location: form.location,
@@ -96,6 +130,8 @@ function ProfileOnboarding({ session, profile, setProfile }) {
       setStatus('Profile completed. You can now submit inquiries.');
     } catch (saveError) {
       setStatus(saveError.message);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -174,9 +210,9 @@ function ProfileOnboarding({ session, profile, setProfile }) {
             />
           </label>
 
-          <button className="profile-save-button" type="submit" disabled={!canSave}>
+          <button className="profile-save-button" type="submit" disabled={!canSave || isSaving}>
             <Save size={17} />
-            Save Profile and Continue
+            {isSaving ? 'Saving…' : 'Save Profile and Continue'}
           </button>
       </form>
 

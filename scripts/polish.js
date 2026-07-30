@@ -17,24 +17,11 @@ content = content.replace(/font-weight:\s*900;/g, 'font-weight: 700;');
 content = content.replace(/font-weight:\s*850;/g, 'font-weight: 600;');
 content = content.replace(/font-weight:\s*800;/g, 'font-weight: 600;');
 
-// Make cards and screens rounded
-const roundedClasses = [
-  '.app-screen',
-  '.inquiry-card',
-  '.admin-inquiry-card',
-  '.auth-panel',
-  '.admin-detail',
-  '.hero',
-  '.admin-kpi',
-  '.place-search-dropdown'
-];
-
-roundedClasses.forEach(cls => {
-  const regex = new RegExp(`(${cls.replace(/\./g, '\\.')}\\s*\\{[^}]*?)`, 'g');
-  // It's safer to just inject it. But simpler to not use regex for this if it's too complex.
-});
-
-// A safer way: just append a utility class or inject directly into known blocks.
+// Make cards and screens rounded.
+// An abandoned per-class regex rewrite (over .app-screen, .inquiry-card,
+// .auth-panel, .admin-detail, .hero, .admin-kpi, .place-search-dropdown) used to
+// sit here: it built a regex per class and then did nothing with it. The rules
+// are appended directly below instead.
 content += `
 /* UI Polish Overrides */
 .app-screen,

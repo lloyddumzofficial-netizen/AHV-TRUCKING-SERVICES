@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { enforceIpRateLimit } from '../../../../lib/security/rateLimit.js';
 
 const COMMONS_API_URL = 'https://commons.wikimedia.org/w/api.php';
 
@@ -28,6 +29,9 @@ function pickBestPhoto(pages) {
 }
 
 export async function GET(request) {
+  const limited = enforceIpRateLimit(request, 'places-photo', { limit: 60, windowMs: 60000 });
+  if (limited) return limited;
+
   const { searchParams } = new URL(request.url);
   const photoName = searchParams.get('photoName');
   const lat = Number(searchParams.get('lat'));

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { LogIn, LogOut, ShieldCheck, UserRound } from 'lucide-react';
+import { CheckCircle2, LogIn, LogOut, Mail, ShieldCheck } from 'lucide-react';
 import { getSupabaseBrowserClient } from '../lib/supabase/client.js';
 
 function getAppOrigin() {
@@ -24,50 +24,121 @@ function getReturnPath() {
   return path;
 }
 
+const MIN_PASSWORD_LENGTH = 6;
+
 function AuthPanel({ session, setSession }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState('');
+  // Every auth action is async against Supabase. Without this the buttons stayed
+  // enabled and a rapid double tap fired duplicate signIn / signUp requests.
+  const [busy, setBusy] = useState('');
   const supabase = getSupabaseBrowserClient();
+
+  const isBusy = Boolean(busy);
+  const userEmail = session?.user?.email || '';
+  const displayName = session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || 'AHV Client';
+  const avatarUrl = session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.picture || '';
+  const initials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase() || 'AH';
+
+  /** Shared validation. signUp is type="button", so native form validation
+   *  never ran for it — an empty email and a 1-char password got through. */
+  const validateCredentials = () => {
+    const trimmed = email.trim();
+
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setStatus('Enter a valid email address.');
+      return null;
+    }
+
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setStatus(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      return null;
+    }
+
+    return { email: trimmed, password };
+  };
 
   const signIn = async (event) => {
     event.preventDefault();
-    setStatus('Signing in...');
+    if (isBusy) return;
 
     if (!supabase) {
       setStatus('Supabase is not configured.');
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setStatus(error ? error.message : 'Signed in.');
+    const credentials = validateCredentials();
+    if (!credentials) return;
+
+    setBusy('signIn');
+    setStatus('Signing in...');
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword(credentials);
+      if (data?.session) {
+        setSession(data.session);
+      }
+      setStatus(error ? error.message : 'Signed in.');
+    } finally {
+      setBusy('');
+    }
   };
 
   const signUp = async () => {
-    setStatus('Creating account...');
+    if (isBusy) return;
 
     if (!supabase) {
       setStatus('Supabase is not configured.');
       return;
     }
 
-    const { error } = await supabase.auth.signUp({ email, password });
-    setStatus(error ? error.message : 'Account created. Check email confirmation if enabled.');
+    const credentials = validateCredentials();
+    if (!credentials) return;
+
+    setBusy('signUp');
+    setStatus('Creating account...');
+
+    try {
+      const { data, error } = await supabase.auth.signUp(credentials);
+      if (data?.session) {
+        setSession(data.session);
+      }
+      setStatus(error ? error.message : 'Account created. Check email confirmation if enabled.');
+    } finally {
+      setBusy('');
+    }
   };
 
   const signOut = async () => {
-    await supabase?.auth.signOut();
-    setSession(null);
-    setStatus('Signed out.');
+    if (isBusy) return;
+    setBusy('signOut');
+
+    try {
+      await supabase?.auth.signOut();
+      setSession(null);
+      setStatus('Signed out.');
+    } finally {
+      setBusy('');
+    }
   };
 
   const continueWithGoogle = async () => {
-    setStatus('Opening Google sign in...');
+    if (isBusy) return;
 
     if (!supabase) {
       setStatus('Supabase is not configured.');
       return;
     }
+
+    setBusy('google');
+    setStatus('Opening Google sign in...');
 
     const origin = getAppOrigin();
     const nextPath = getReturnPath();
@@ -80,6 +151,8 @@ function AuthPanel({ session, setSession }) {
 
     if (error) {
       setStatus(error.message);
+      // On success the browser navigates away, so only release on failure.
+      setBusy('');
     }
   };
 
@@ -97,20 +170,31 @@ function AuthPanel({ session, setSession }) {
       )}
 
       {session ? (
-        <div className="auth-user">
-          <UserRound size={20} />
-          <div>
-            <span>Signed in</span>
-            <strong>{session.user.email}</strong>
+        <div className="auth-user auth-user-card">
+          <div className="auth-avatar" aria-hidden="true">
+            {avatarUrl ? <img src={avatarUrl} alt="" /> : <span>{initials}</span>}
           </div>
-          <button type="button" onClick={signOut}>
+          <div className="auth-user-main">
+            <div className="auth-user-topline">
+              <span className="auth-verified-badge">
+                <CheckCircle2 size={14} />
+                Signed in
+              </span>
+            </div>
+            <strong>{displayName}</strong>
+            <p>
+              <Mail size={14} />
+              <span>{userEmail}</span>
+            </p>
+          </div>
+          <button className="auth-logout-button" type="button" onClick={signOut} disabled={isBusy}>
             <LogOut size={17} />
-            <span>Logout</span>
+            <span>{busy === 'signOut' ? 'Signing out…' : 'Logout'}</span>
           </button>
         </div>
       ) : (
         <div className="auth-form">
-          <button className="google-auth-button" type="button" onClick={continueWithGoogle}>
+          <button className="google-auth-button" type="button" onClick={continueWithGoogle} disabled={isBusy}>
             <svg className="google-mark" aria-hidden="true" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M23.49 12.27c0-.83-.07-1.45-.22-2.09H12.24v3.8h6.47c-.13.94-.83 2.35-2.39 3.3l-.02.13 3.47 2.35.24.02c2.2-1.78 3.48-4.4 3.48-7.51z" />
               <path fill="#34A853" d="M12.24 22c3.15 0 5.79-.91 7.72-2.49l-3.68-2.5c-.98.6-2.3 1.02-4.04 1.02-3.08 0-5.69-1.78-6.62-4.25l-.14.01-3.61 2.44-.05.12C3.74 19.7 7.68 22 12.24 22z" />
@@ -141,17 +225,18 @@ function AuthPanel({ session, setSession }) {
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder="At least 6 characters"
+                placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
+                minLength={MIN_PASSWORD_LENGTH}
                 required
               />
             </label>
             <div className="auth-actions">
-              <button type="submit">
+              <button type="submit" disabled={isBusy}>
                 <LogIn size={17} />
-                Login
+                {busy === 'signIn' ? 'Signing in…' : 'Login'}
               </button>
-              <button type="button" onClick={signUp}>
-                Sign up
+              <button type="button" onClick={signUp} disabled={isBusy}>
+                {busy === 'signUp' ? 'Creating…' : 'Sign up'}
               </button>
             </div>
           </form>

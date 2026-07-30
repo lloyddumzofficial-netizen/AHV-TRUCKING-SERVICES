@@ -36,11 +36,18 @@ export async function getAdminContext(request) {
     return { user, profile, supabase, error: 'Admin access is required.', status: 403 };
   }
 
+  // Reconcile an ADMIN_EMAILS-derived role into the row. This is a write on a
+  // read path, so a failure must not be silent — but it also must not block the
+  // request, since authorization already succeeded above.
   if (profile && profile.role !== 'admin') {
-    await supabase
+    const { error: syncError } = await supabase
       .from('user_profiles')
       .update({ role: 'admin', updated_at: new Date().toISOString() })
       .eq('id', user.id);
+
+    if (syncError) {
+      console.error('[admin] role sync failed for', user.id, syncError.message);
+    }
   }
 
   return { user, profile: { ...(profile || {}), role: 'admin' }, supabase, error: null, status: 200 };

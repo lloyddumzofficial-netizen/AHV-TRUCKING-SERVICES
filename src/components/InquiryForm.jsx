@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { AlertTriangle, CheckCircle2, ClipboardCopy, ImagePlus, LockKeyhole, MapPin, Package, Send, Trash2, UserRound, Loader2, Camera } from 'lucide-react';
 import CustomerInquiryList from './CustomerInquiryList.jsx';
 import { CARGO_OPTIONS } from '../data/cargoOptions.js';
-import { createInquiry, uploadCargoImages } from '../lib/inquiries/api.js';
+import { createInquiry, getInquiryQuota, uploadCargoImages } from '../lib/inquiries/api.js';
 import { calculateDistanceKm } from '../lib/inquiries/distance.js';
 import { compressImageFile } from '../lib/inquiries/imageCompression.js';
 import { createInquiryReference } from '../lib/inquiries/reference.js';
 import { isProfileComplete } from '../lib/profile/api.js';
+import { useModalBehavior } from '../lib/hooks/useModalBehavior.js';
+import { validateStep } from '../lib/inquiries/validation.js';
 import AuthPanel from './AuthPanel.jsx';
 
 const PhilippinesMapPicker = dynamic(() => import('./PhilippinesMapPicker.jsx'), {
@@ -62,50 +64,83 @@ function InquiryForm({ onInquirySubmit, submittedInquiry, session, setSession, p
     }
   }, [profile?.full_name, profile?.phone]);
 
-  const canProceedToStep2 = form.name.trim() !== '' && form.phone.trim() !== '';
-  const canProceedToStep3 = form.pickupAddress.trim() !== '' && form.deliveryAddress.trim() !== '' && pickup && delivery && !distanceTooClose;
-  const canProceedToStep4 = form.cargoType !== '' && form.quantity !== '';
+  // Real per-step validation against the same rules the server enforces, rather
+  // than a truthiness check that let "abc" through as a phone number.
+  const validationContext = useMemo(
+    () => ({ form, pickup, delivery, routeDistance, images }),
+    [form, pickup, delivery, routeDistance, images],
+  );
+
+  const stepErrors = useMemo(
+    () => validateStep(currentStep, validationContext),
+    [currentStep, validationContext],
+  );
+  const stepIsValid = Object.keys(stepErrors).length === 0;
+
+  // Only surface a field's error once the user has left it (or tried to advance),
+  // so the form isn't shouting at someone mid-type.
+  const [touched, setTouched] = useState({});
+  const [showStepErrors, setShowStepErrors] = useState(false);
+
+  const errorFor = (field) =>
+    (touched[field] || showStepErrors) ? stepErrors[field] : undefined;
+
+  const markTouched = (field) => setTouched((current) => ({ ...current, [field]: true }));
+
+  const scrollToForm = () => {
+    setTimeout(() => {
+      document.getElementById('inquiry')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  };
 
   const nextStep = () => {
+    if (!stepIsValid) {
+      // Reveal every error for this step instead of silently doing nothing.
+      setShowStepErrors(true);
+      return;
+    }
+    setShowStepErrors(false);
     setCurrentStep((prev) => Math.min(prev + 1, 5));
-    setTimeout(() => {
-      document.getElementById('inquiry')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 50);
-  };
-  
-  const prevStep = () => {
-    setCurrentStep((prev) => Math.max(prev - 1, 1));
-    setTimeout(() => {
-      document.getElementById('inquiry')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 50);
+    scrollToForm();
   };
 
-  const canSubmit = useMemo(
-    () => Boolean(
-      session?.access_token && 
-      profileComplete && 
-      form.name && 
-      form.phone && 
-      form.pickupAddress && 
-      form.deliveryAddress && 
-      pickup && 
-      delivery && 
-      images.length > 0 &&
-      (!routeDistance || routeDistance >= 1) // Enforce minimum 1km distance
-    ),
-    [session?.access_token, profileComplete, form, pickup, delivery, images.length, routeDistance],
+  const prevStep = () => {
+    setShowStepErrors(false);
+    setCurrentStep((prev) => Math.max(prev - 1, 1));
+    scrollToForm();
+  };
+
+  // Every step must be valid, not merely non-empty.
+  const allStepsValid = useMemo(
+    () => [1, 2, 3, 4].every((step) => Object.keys(validateStep(step, validationContext)).length === 0),
+    [validationContext],
   );
+
+  const canSubmit = Boolean(session?.access_token && profileComplete && allStepsValid);
 
   const updateField = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
   };
+
+  const copiedTimerRef = useRef(null);
+  const successModalRef = useRef(null);
+
+  // The reset timer used to outlive the component.
+  useEffect(() => () => window.clearTimeout(copiedTimerRef.current), []);
+
+  // Scroll lock + Escape + focus. The page used to scroll behind this overlay.
+  useModalBehavior(showSuccessModal, {
+    onClose: () => setShowSuccessModal(false),
+    containerRef: successModalRef,
+  });
 
   const copySubmittedReference = async () => {
     if (!submittedInquiry?.reference) return;
     try {
       await navigator.clipboard.writeText(submittedInquiry.reference);
       setCopiedReference(true);
-      window.setTimeout(() => setCopiedReference(false), 1800);
+      window.clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = window.setTimeout(() => setCopiedReference(false), 1800);
     } catch {
       setSubmitStatus('Unable to copy reference. Please copy it manually.');
     }
@@ -162,16 +197,28 @@ function InquiryForm({ onInquirySubmit, submittedInquiry, session, setSession, p
       return;
     }
 
-    if (routeDistance !== null && routeDistance < 1) {
-      setSubmitStatus('The pickup and delivery locations are too close. Minimum route distance is 1 km.');
+    if (!allStepsValid) {
+      setShowStepErrors(true);
+      setSubmitStatus('Please fix the highlighted details before submitting.');
       return;
     }
 
-    const reference = createInquiryReference();
-    setSubmitStatus('Uploading cargo images and saving inquiry...');
     setIsSubmitting(true);
 
     try {
+      // Ask whether we're allowed to submit BEFORE uploading. The cooldown and
+      // 3-active cap used to be discovered only after the photos were already in
+      // R2, orphaning every one of them.
+      setSubmitStatus('Checking your submission limit...');
+      const quota = await getInquiryQuota(session.access_token);
+
+      if (!quota.allowed) {
+        setSubmitStatus(quota.reason || 'You cannot submit another inquiry right now.');
+        return;
+      }
+
+      const reference = createInquiryReference();
+      setSubmitStatus('Uploading cargo images and saving inquiry...');
       const uploadedImages = await uploadCargoImages(session.access_token, reference, images);
       const inquiry = {
         ...form,
@@ -202,7 +249,7 @@ function InquiryForm({ onInquirySubmit, submittedInquiry, session, setSession, p
           Sign in, complete your profile, then submit pickup, delivery, cargo details, and photos. AHV admins will review the exact truck route after submission.
         </p>
         
-        <div style={{ marginTop: '2rem' }}>
+        <div className="inquiry-auth-slot">
           <AuthPanel session={session} setSession={setSession} />
         </div>
       </div>
@@ -260,13 +307,18 @@ function InquiryForm({ onInquirySubmit, submittedInquiry, session, setSession, p
                 <input
                   value={form.name}
                   onChange={(event) => updateField('name', event.target.value)}
+                  onBlur={() => markTouched('name')}
                   placeholder="Full name or business contact"
-                  minLength={4}
                   maxLength={100}
-                  pattern=".*[a-zA-Z].*"
-                  title="Full name must contain at least one letter and be at least 4 characters long."
+                  aria-invalid={Boolean(errorFor('name'))}
+                  aria-describedby={errorFor('name') ? 'inquiry-name-error' : undefined}
                   required
                 />
+                {errorFor('name') && (
+                  <span className="field-error" id="inquiry-name-error" role="alert">
+                    {errorFor('name')}
+                  </span>
+                )}
               </label>
               <label>
                 Mobile number
@@ -274,11 +326,18 @@ function InquiryForm({ onInquirySubmit, submittedInquiry, session, setSession, p
                   type="tel"
                   value={form.phone}
                   onChange={(event) => updateField('phone', event.target.value)}
+                  onBlur={() => markTouched('phone')}
                   placeholder="09XXXXXXXXX or +639XXXXXXXXX"
-                  pattern="^(09|\+639)\d{9}$"
-                  title="Please enter a valid Philippine mobile number (e.g., 09123456789 or +639123456789)"
+                  inputMode="tel"
+                  aria-invalid={Boolean(errorFor('phone'))}
+                  aria-describedby={errorFor('phone') ? 'inquiry-phone-error' : undefined}
                   required
                 />
+                {errorFor('phone') && (
+                  <span className="field-error" id="inquiry-phone-error" role="alert">
+                    {errorFor('phone')}
+                  </span>
+                )}
               </label>
             </div>
           </section>
@@ -390,23 +449,25 @@ function InquiryForm({ onInquirySubmit, submittedInquiry, session, setSession, p
               <ImagePlus size={20} />
               <div>
                 <span>Step 4</span>
-                <h3>Parcel images <span style={{ color: '#ef4444', fontSize: '0.75rem', fontWeight: '600', marginLeft: '0.5rem', padding: '2px 6px', background: '#fee2e2', borderRadius: '4px' }}>Required</span></h3>
+                <h3>Parcel images <span className="field-required-badge">Required</span></h3>
               </div>
             </div>
 
-            <div className="upload-options" style={{ marginBottom: '1.5rem' }}>
-              <p style={{ marginBottom: '0.75rem', color: 'var(--muted)', fontSize: '0.9rem' }}>
+            <div className="upload-options">
+              <p className="upload-options-hint">
                 At least one photo is required to help AHV estimate size and truck fit.
               </p>
-              <div className="upload-buttons" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <label className="upload-zone" style={{ minHeight: '120px', padding: '1rem' }}>
+              {/* Class, not an inline 1fr 1fr grid: inline styles cannot respond to
+                  a breakpoint, so two 120px zones stayed side by side at 320px. */}
+              <div className="upload-buttons">
+                <label className="upload-zone">
                   <Camera size={24} />
-                  <strong style={{ fontSize: '0.9rem' }}>Take Photo</strong>
+                  <strong>Take Photo</strong>
                   <input type="file" accept="image/*" capture="environment" onChange={handleImageChange} />
                 </label>
-                <label className="upload-zone" style={{ minHeight: '120px', padding: '1rem' }}>
+                <label className="upload-zone">
                   <ImagePlus size={24} />
-                  <strong style={{ fontSize: '0.9rem' }}>Upload Image</strong>
+                  <strong>Upload Image</strong>
                   <input type="file" accept="image/*" multiple onChange={handleImageChange} />
                 </label>
               </div>
@@ -437,28 +498,28 @@ function InquiryForm({ onInquirySubmit, submittedInquiry, session, setSession, p
               </div>
             </div>
 
-            <div style={{ background: 'var(--soft)', padding: '1.5rem', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div className="inquiry-review-panel">
               <div>
-                <h4 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.25rem' }}>Contact</h4>
-                <p style={{ margin: 0, fontWeight: 600 }}>{form.name} • {form.phone}</p>
+                <h4>Contact</h4>
+                <p>{form.name} • {form.phone}</p>
               </div>
               
               <div>
-                <h4 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.25rem' }}>Route</h4>
-                <p style={{ margin: 0, fontWeight: 600 }}>From: {form.pickupAddress}</p>
-                <p style={{ margin: '0.25rem 0 0', fontWeight: 600 }}>To: {form.deliveryAddress}</p>
-                <p style={{ margin: '0.25rem 0 0', color: 'var(--green)', fontSize: '0.85rem', fontWeight: 700 }}>Est. distance: {routeDistance ? `${routeDistance.toLocaleString()} km` : 'Calculating...'}</p>
+                <h4>Route</h4>
+                <p>From: {form.pickupAddress}</p>
+                <p>To: {form.deliveryAddress}</p>
+                <small>Est. distance: {routeDistance ? `${routeDistance.toLocaleString()} km` : 'Calculating...'}</small>
               </div>
 
               <div>
-                <h4 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.25rem' }}>Cargo</h4>
-                <p style={{ margin: 0, fontWeight: 600 }}>{form.quantity}x {form.cargoType} {form.weight ? `(${form.weight} kg)` : ''}</p>
-                {form.notes && <p style={{ margin: '0.25rem 0 0', fontStyle: 'italic', fontSize: '0.9rem' }}>"{form.notes}"</p>}
+                <h4>Cargo</h4>
+                <p>{form.quantity}x {form.cargoType} {form.weight ? `(${form.weight} kg)` : ''}</p>
+                {form.notes && <em>"{form.notes}"</em>}
               </div>
 
               <div>
-                <h4 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.5rem' }}>Attached Photos</h4>
-                <p style={{ margin: '0 0 0.75rem', fontWeight: 600 }}>{images.length} {images.length === 1 ? 'photo' : 'photos'} attached</p>
+                <h4>Attached Photos</h4>
+                <p>{images.length} {images.length === 1 ? 'photo' : 'photos'} attached</p>
                 {images.length > 0 && (
                   <div className="review-images-grid">
                     {images.map((image) => (
@@ -473,6 +534,22 @@ function InquiryForm({ onInquirySubmit, submittedInquiry, session, setSession, p
           </section>
         )}
 
+        {/* Why the step can't be advanced. Previously the Continue button was just
+            disabled with no explanation for 3 of the 4 steps. */}
+        {showStepErrors && !stepIsValid && (
+          <div className="step-error-summary" role="alert" id="step-error-summary">
+            <AlertTriangle size={17} />
+            <div>
+              <strong>Kailangan pa ng ilang detalye bago tumuloy:</strong>
+              <ul>
+                {Object.entries(stepErrors).map(([field, message]) => (
+                  <li key={field}>{message}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+
         <div className="step-nav">
           {currentStep > 1 && (
             <button type="button" className="step-nav-button back" onClick={prevStep}>
@@ -480,22 +557,18 @@ function InquiryForm({ onInquirySubmit, submittedInquiry, session, setSession, p
             </button>
           )}
           {currentStep < 5 ? (
-            <button 
-              type="button" 
-              className="step-nav-button next" 
+            // Deliberately NOT disabled: clicking it is how the driver/customer
+            // finds out what is missing. nextStep blocks the advance instead.
+            <button
+              type="button"
+              className={stepIsValid ? 'step-nav-button next' : 'step-nav-button next is-blocked'}
               onClick={nextStep}
-              disabled={
-                (currentStep === 1 && !canProceedToStep2) ||
-                (currentStep === 2 && (!canProceedToStep3 || distanceTooClose)) ||
-                (currentStep === 3 && !canProceedToStep4) ||
-                (currentStep === 4 && images.length === 0)
-              }
-              style={{ marginLeft: 'auto', padding: '0.85rem 2rem', fontSize: '1rem', borderRadius: '12px', background: 'var(--ink)', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}
+              aria-describedby={showStepErrors && !stepIsValid ? 'step-error-summary' : undefined}
             >
               Continue
             </button>
           ) : (
-            <button type="submit" className="step-nav-button next submit-btn" disabled={!canSubmit || isSubmitting} style={{ marginLeft: 'auto', padding: '0.85rem 2.5rem', fontSize: '1.1rem', borderRadius: '12px', background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', color: '#fff', boxShadow: '0 8px 20px -8px rgba(22,163,74,0.6)', border: 'none', display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}>
+            <button type="submit" className="step-nav-button next submit-btn" disabled={!canSubmit || isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="spinner" size={20} />
@@ -512,7 +585,7 @@ function InquiryForm({ onInquirySubmit, submittedInquiry, session, setSession, p
         </div>
 
         {submitStatus && !showSuccessModal && (
-          <div className="submit-status" style={{ marginTop: '1.5rem', padding: '1rem', background: 'var(--soft)', borderRadius: '8px', color: 'var(--muted)', fontWeight: '500', textAlign: 'center' }}>
+          <div className="submit-status submit-status-block">
             {submitStatus}
           </div>
         )}
@@ -521,7 +594,14 @@ function InquiryForm({ onInquirySubmit, submittedInquiry, session, setSession, p
       {/* SUCCESS MODAL OVERLAY */}
       {showSuccessModal && (
         <div className="profile-modal-backdrop success-modal-backdrop">
-          <section className="profile-panel onboarding-modal success-modal-card" role="dialog" aria-modal="true" aria-labelledby="inquiry-success-title">
+          <section
+            ref={successModalRef}
+            tabIndex={-1}
+            className="profile-panel onboarding-modal success-modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="inquiry-success-title"
+          >
             <div className="success-modal-icon">
               <CheckCircle2 size={40} />
             </div>

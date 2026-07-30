@@ -7,7 +7,7 @@
 .site-header {
   position: sticky;
   top: 0;
-  z-index: 900;
+  z-index: var(--z-header);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -82,7 +82,9 @@
 }
 
 .scroll-delay-1 { transition-delay: 0.1s; }
+
 .scroll-delay-2 { transition-delay: 0.2s; }
+
 .scroll-delay-3 { transition-delay: 0.3s; }
 
 .desktop-nav {
@@ -559,7 +561,7 @@
 .profile-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 2000;
+  z-index: var(--z-modal-backdrop);
   display: grid;
   align-items: end;
   justify-items: center;
@@ -2097,6 +2099,44 @@ textarea:focus {
   border-color: var(--line);
 }
 
+.upload-options {
+  margin-bottom: 1.5rem;
+}
+
+.upload-options-hint {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* Two columns when there's room, stacked when there isn't. This was an inline
+   `gridTemplateColumns: '1fr 1fr'`, which no media query could reach. */
+.upload-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.submit-status-block {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  color: var(--muted);
+  background: var(--soft);
+  border-radius: 8px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.field-required-badge {
+  margin-left: 0.5rem;
+  padding: 2px 6px;
+  color: var(--red);
+  background: #fee2e2;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
 .upload-zone {
   display: grid;
   place-items: center;
@@ -2623,35 +2663,30 @@ textarea:focus {
     padding: 0.65rem 0.75rem;
   }
 
-  .brand {
+.brand {
     gap: 0.45rem;
     font-size: 1.35rem;
   }
 
-  .brand small {
+.brand small {
     font-size: 0.58rem;
   }
 
-  .brand-icon {
-    width: 38px;
-    height: 38px;
-  }
-
-  .header-call {
+.header-call {
     width: 44px;
     padding: 0;
   }
 
-  .header-call svg {
+.header-call svg {
     margin: 0;
   }
 
-  .header-call {
+.header-call {
     font-size: 0;
     gap: 0;
   }
 
-  .hero-section,
+.hero-section,
   .truck-section,
   .auth-panel,
   .profile-panel,
@@ -2661,34 +2696,35 @@ textarea:focus {
     padding-left: 0.85rem;
   }
 
-  .hero-copy h1 {
+.hero-copy h1 {
     font-size: 2.05rem;
-  }
-}
+  }}
 
-@media (min-width: 700px) {
+/* 769px, not 700px. The header nav swap must line up with .mobile-bottom-nav,
+   which renders up to 768px — at 700-768px BOTH navs were visible at once. */
+@media (min-width: 769px) {
   .profile-modal-backdrop {
     align-items: center;
   }
 
-  .site-header {
+.site-header {
     padding: 0.85rem 1.5rem;
   }
 
-  .menu-button {
+.menu-button {
     display: none;
   }
 
-  .mobile-nav {
+.mobile-nav {
     display: none;
   }
 
-  .desktop-nav {
+.desktop-nav {
     display: flex;
     gap: 1rem;
   }
 
-  .desktop-nav button {
+.desktop-nav button {
     color: var(--muted);
     background: transparent;
     border: 0;
@@ -2700,11 +2736,11 @@ textarea:focus {
     cursor: pointer;
   }
 
-  .desktop-nav button.active {
+.desktop-nav button.active {
     color: var(--green-dark);
   }
 
-  .hero-section,
+.hero-section,
   .truck-section,
   .admin-dashboard,
   .inquiry-section,
@@ -2713,29 +2749,29 @@ textarea:focus {
     padding-left: 1.5rem;
   }
 
-  .hero-actions {
+.hero-actions {
     grid-template-columns: max-content max-content;
   }
 
-  .home-next-actions {
+.home-next-actions {
     grid-template-columns: max-content max-content;
   }
 
-  .route-strip {
+.route-strip {
     display: flex;
     flex-wrap: wrap;
   }
 
-  .truck-showcase,
+.truck-showcase,
   .truck-details {
     grid-template-columns: 1fr 1fr;
   }
 
-  .truck-details {
+.truck-details {
     align-content: start;
   }
 
-  .field-grid,
+.field-grid,
   .coordinate-grid,
   .place-search-grid,
   .admin-update-form,
@@ -2744,78 +2780,78 @@ textarea:focus {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .admin-kpis {
+.admin-kpis {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     overflow: visible;
   }
 
-  .admin-kpi {
+.admin-kpi {
     width: auto;
     flex: initial;
   }
 
-  .admin-heading {
+.admin-heading {
     grid-template-columns: minmax(0, 1fr) max-content;
     align-items: start;
   }
 
-  .admin-command-bar {
+.admin-command-bar {
     grid-template-columns: repeat(2, max-content);
   }
 
-  .admin-logout-button {
+.admin-logout-button {
     width: auto;
     min-width: 120px;
   }
 
-  .admin-refresh-button {
+.admin-refresh-button {
     width: auto;
     min-width: 120px;
   }
 
-  .admin-primary-actions {
+.admin-primary-actions {
     grid-template-columns: max-content minmax(0, 1fr);
   }
 
-  .admin-danger-actions {
+.admin-danger-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .admin-workspace {
+.admin-workspace {
     grid-template-columns: minmax(280px, 0.38fr) minmax(0, 0.62fr);
     align-items: start;
   }
 
-  .admin-inquiry-list {
+.admin-inquiry-list {
     position: sticky;
     top: 92px;
     max-height: calc(100vh - 110px);
     overflow-y: auto;
   }
 
-  .admin-route-actions {
+.admin-route-actions {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .admin-pagination {
+.admin-pagination {
     grid-template-columns: 1fr;
   }
 
-  .admin-images > div:last-child {
+.admin-images > div:last-child {
     grid-template-columns: repeat(4, 1fr);
   }
 
-  .route-pathway {
+.route-pathway {
     grid-template-columns: minmax(0, 1fr) 48px minmax(0, 1fr) 48px minmax(0, 1fr);
     align-items: stretch;
   }
 
-  .route-pathway div {
+.route-pathway div {
     align-content: start;
   }
 
-  .route-pathway i {
+.route-pathway i {
     width: 100%;
     height: 2px;
     margin: 24px 0 0;
@@ -2828,25 +2864,25 @@ textarea:focus {
     );
   }
 
-  .route-actions {
+.route-actions {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .auth-panel {
+.auth-panel {
     grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
     align-items: stretch;
   }
 
-  .profile-panel {
+.profile-panel {
     grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
     align-items: stretch;
   }
 
-  .profile-panel.onboarding-modal {
+.profile-panel.onboarding-modal {
     grid-template-columns: 1fr;
   }
 
-  .auth-copy,
+.auth-copy,
   .auth-form,
   .auth-user,
   .profile-heading,
@@ -2856,19 +2892,18 @@ textarea:focus {
     min-width: 0;
   }
 
-  .auth-status,
+.auth-status,
   .profile-status {
     grid-column: 1 / -1;
   }
 
-  .field-grid label:nth-child(3) {
+.field-grid label:nth-child(3) {
     grid-column: span 2;
   }
 
-  .footer-links {
+.footer-links {
     grid-template-columns: max-content max-content;
-  }
-}
+  }}
 
 @media (min-width: 1024px) {
   .site-header {
@@ -2876,86 +2911,85 @@ textarea:focus {
     padding-left: 2rem;
   }
 
-  .hero-section {
+.hero-section {
     grid-template-columns: 0.9fr 1.1fr;
     align-items: center;
     gap: 2.5rem;
     min-height: calc(100vh - 72px);
   }
 
-  .hero-copy h1 {
+.hero-copy h1 {
     font-size: clamp(4.2rem, 6.4vw, 6.8rem);
   }
 
-  .hero-text {
+.hero-text {
     max-width: 620px;
   }
 
-  .truck-photo-panel {
+.truck-photo-panel {
     height: min(58vw, 600px);
     min-height: 520px;
   }
 
-  .truck-badge {
+.truck-badge {
     position: absolute;
     left: -1rem;
     bottom: 2rem;
     min-width: 270px;
   }
 
-  .coverage-card {
+.coverage-card {
     position: absolute;
     top: 1rem;
     right: 1rem;
     width: 260px;
   }
 
-  .trust-card {
+.trust-card {
     position: absolute;
     right: 2rem;
     bottom: -1rem;
     width: 310px;
   }
 
-  .truck-showcase {
+.truck-showcase {
     grid-template-columns: 1.2fr 0.8fr;
     align-items: stretch;
   }
 
-  .truck-image-card {
+.truck-image-card {
     height: 450px;
   }
 
-  .truck-highlights {
+.truck-highlights {
     grid-template-columns: repeat(3, 1fr);
   }
 
-  .inquiry-section {
+.inquiry-section {
     display: grid;
     grid-template-columns: 0.34fr 0.66fr;
     gap: 2rem;
     align-items: start;
   }
 
-  .inquiry-heading {
+.inquiry-heading {
     position: sticky;
     top: 92px;
   }
 
-  .inquiry-form,
+.inquiry-form,
   .inquiry-summary,
   .recent-inquiries {
     grid-column: 2;
   }
 
-  .map-frame {
+.map-frame {
     height: 470px;
   }
 
-  .map-loading {
+.map-loading {
     height: 470px;
-  }
-}
+  }}
 
 /* ==========================================================================
    ADMIN DESKTOP OPERATIONS CONSOLE
@@ -3881,7 +3915,7 @@ textarea:focus {
 .admin-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 2200;
+  z-index: var(--z-modal);
   display: grid;
   place-items: center;
   padding: 1rem;
@@ -4006,6 +4040,17 @@ textarea:focus {
   font-weight: 700;
 }
 
+.admin-location-empty {
+  margin: 0.5rem 0 0;
+  padding: 0.65rem 0.8rem;
+  color: var(--amber-ink);
+  background: var(--amber-soft);
+  border: 1px solid var(--amber);
+  border-radius: 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
 .admin-location-suggestions {
   max-height: 260px;
   overflow-y: auto;
@@ -4095,37 +4140,38 @@ textarea:focus {
     place-items: center;
   }
 
-  .admin-console-shell,
+.admin-console-shell,
   .admin-slide-panel,
   .admin-slide-backdrop,
-  .toast-container {
+  /* Scoped to the admin console. Unscoped, this also hid the CUSTOMER toast root
+     (App.jsx renders .toast-container too), so every toast on the customer app —
+     including "Sign in first to access this feature" — was invisible on every
+     phone and tablet. That was the app's only feedback channel on mobile. */
+  .admin-console .toast-container {
     display: none !important;
   }
 
-  .admin-desktop-gate {
+.admin-desktop-gate {
     display: flex !important;
     max-width: 520px;
     margin: 0;
     padding: 2rem;
     border-radius: 14px;
-  }
-}
+  }}
 
 @media (min-width: 1025px) {
   .admin-desktop-gate {
     display: none !important;
-  }
-}
+  }}
 
 @media (min-width: 1440px) {
   .admin-main {
     padding: 1.75rem 2rem;
   }
 
-  .admin-overview-grid {
+.admin-overview-grid {
     gap: 1rem;
-  }
-}
+  }}
 
 /* Multi-step Form Styles */
 .step-progress {
@@ -4200,17 +4246,30 @@ textarea:focus {
   align-items: center;
   justify-content: center;
   gap: 0.55rem;
+  /* 44px minimum, matching the baseline group at the top of this file. */
+  min-height: 48px;
   padding: 0.9rem 1rem;
-  font-weight: 600;
+  border-radius: 12px;
+  font: inherit;
+  font-weight: 700;
   font-size: 1rem;
   cursor: pointer;
   border: 1px solid var(--line);
 }
 
 .step-nav-button.next {
+  margin-left: auto;
   color: #fff;
-  background: var(--green);
+  background: var(--ink);
+  border-color: transparent;
   box-shadow: 0 4px 16px rgba(17, 24, 39, 0.06);
+}
+
+/* Final submit reads as the primary, terminal action. */
+.step-nav-button.submit-btn {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  box-shadow: 0 8px 20px -8px rgba(22, 163, 74, 0.6);
+  font-size: 1.05rem;
 }
 
 .step-nav-button.next:disabled {
@@ -4269,12 +4328,16 @@ button:hover:not(:disabled) {
   transform: translateY(-1px);
 }
 
-
 .admin-client-card { display: flex; align-items: center; gap: 1rem; padding: 1.25rem; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; margin-top: 2rem; }
+
 .admin-client-avatar { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; background: var(--soft-green); display: grid; place-items: center; color: var(--green); }
+
 .admin-client-label { font-size: 0.75rem; text-transform: uppercase; color: var(--green); font-weight: 700; margin: 0; }
+
 .admin-client-card div { display: flex; flex-direction: column; gap: 0.2rem; }
+
 .admin-client-card strong { font-size: 1.1rem; color: var(--ink); }
+
 .admin-client-card span { font-size: 0.85rem; color: var(--muted); }
 
 /* Fleet Showcase CSS */
@@ -4417,27 +4480,26 @@ button:hover:not(:disabled) {
     gap: 4rem;
   }
 
-  .hero-copy {
+.hero-copy {
     padding-right: 2rem;
   }
 
-  .hero-actions {
+.hero-actions {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 1rem;
   }
 
-  .home-next-actions {
+.home-next-actions {
     grid-template-columns: 1fr 1fr;
     gap: 1.5rem;
     max-width: 800px;
   }
-  
-  .desktop-only {
+
+.desktop-only {
     display: inline-block !important;
-  }
-}
+  }}
 
 /* Hidden on mobile, shown on desktop */
 .desktop-only {
@@ -4451,22 +4513,13 @@ button:hover:not(:disabled) {
   background: transparent;
   margin-bottom: 2rem;
 }
+
 .signed-in-panel .auth-user {
   background: #fff;
   border: 1px solid var(--line);
   padding: 1rem 1.5rem;
   border-radius: 12px;
   box-shadow: 0 4px 15px rgba(0,0,0,0.02);
-}
-
-/* ADMIN KANBAN BOARD STYLES */
-.admin-kanban-board {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 1rem;
-  padding: 1rem 0 2rem;
-  align-items: start;
-  height: calc(100vh - 200px);
 }
 
 .admin-kanban-column {
@@ -4571,7 +4624,7 @@ button:hover:not(:disabled) {
   bottom: 0;
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(2px);
-  z-index: 999;
+  z-index: var(--z-panel-backdrop);
 }
 
 .admin-slide-panel {
@@ -4583,7 +4636,7 @@ button:hover:not(:disabled) {
   max-width: 550px;
   background: var(--bg);
   box-shadow: -8px 0 32px rgba(0,0,0,0.15);
-  z-index: 1000;
+  z-index: var(--z-panel);
   transform: translateX(100%);
   transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   overflow-y: auto;
@@ -4661,11 +4714,7 @@ button:hover:not(:disabled) {
   display: none;
 }
 
-@media (max-width: 1024px) {
-  .admin-kanban-board {
-    display: none; /* Hide board on small screens */
-  }
-  .desktop-only-warning {
+@media (max-width: 1024px) {.desktop-only-warning {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -4678,13 +4727,13 @@ button:hover:not(:disabled) {
     color: var(--muted);
     margin-top: 2rem;
   }
-  .desktop-only-warning strong {
+
+.desktop-only-warning strong {
     color: var(--ink);
     font-size: 1.25rem;
     margin-top: 1rem;
     margin-bottom: 0.5rem;
-  }
-}
+  }}
 
 /* ─── ANIMATIONS ──────────────────────────────────── */
 @keyframes fade-in-up {
@@ -4710,7 +4759,7 @@ button:hover:not(:disabled) {
   position: fixed;
   top: 1rem;
   right: 1rem;
-  z-index: 9999;
+  z-index: var(--z-toast);
   display: grid;
   gap: 0.55rem;
   max-width: min(380px, calc(100vw - 2rem));
@@ -4763,6 +4812,33 @@ button:hover:not(:disabled) {
 
 .toast-info {
   border-left-color: #2563eb;
+}
+
+/* Small icon buttons: keep the visual size, expand the touch target to 44px via
+   a centred pseudo-element. Growing the boxes themselves would push the toast,
+   card-header and table layouts around. */
+.toast-close,
+.copy-ref-btn,
+.inquiries-refresh-btn,
+.admin-row-actions button,
+.marker-reset {
+  position: relative;
+}
+
+.toast-close::after,
+.copy-ref-btn::after,
+.inquiries-refresh-btn::after,
+.admin-row-actions button::after,
+.marker-reset::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  min-width: 44px;
+  min-height: 44px;
+  width: 100%;
+  height: 100%;
+  transform: translate(-50%, -50%);
 }
 
 .toast-close {
@@ -4857,11 +4933,10 @@ button:hover:not(:disabled) {
     gap: 1.25rem;
   }
 
-  .how-step {
+.how-step {
     flex-direction: column;
     gap: 0.65rem;
-  }
-}
+  }}
 
 /* ─── STEP INDICATOR V2 (icon pills) ──────────────── */
 .step-indicator-v2 {
@@ -5197,11 +5272,10 @@ button:hover:not(:disabled) {
     grid-template-columns: repeat(3, 1fr);
   }
 
-  .footer-main {
+.footer-main {
     grid-template-columns: 1fr 1fr;
     gap: 3rem;
-  }
-}
+  }}
 
 /* ─── ADDRESS CONFIRMATION STRIP ─────────────────── */
 .address-confirm-grid {
@@ -5264,18 +5338,17 @@ button:hover:not(:disabled) {
   .copy-ref-btn {
     min-height: 48px !important;
   }
-  
-  /* Ensure padding inside inputs gives enough breathing room */
+
+/* Ensure padding inside inputs gives enough breathing room */
   input, select, textarea {
     padding: 0.85rem 1rem !important;
     font-size: 1rem !important; /* Prevents iOS Safari zoom */
   }
 
-  /* 2. PREMIUM CARD AESTHETICS */
-  .recent-card,
-  .customer-inquiry-card,
-  .admin-detail-panel,
-  .inquiry-grid > div {
+/* 2. PREMIUM CARD AESTHETICS */
+.recent-card,
+.customer-inquiry-card,
+.inquiry-grid > div {
     border-radius: 16px !important;
     box-shadow: 0 10px 25px -5px rgba(17, 24, 39, 0.05), 0 8px 10px -6px rgba(17, 24, 39, 0.01) !important;
     border: 1px solid rgba(223, 231, 225, 0.8) !important;
@@ -5285,95 +5358,57 @@ button:hover:not(:disabled) {
     margin-bottom: 1.25rem;
   }
 
-  /* Keep the app background white to match the Figma mockup */
+/* Keep the app background white to match the Figma mockup */
   .app-shell {
     background: #ffffff !important;
   }
 
-  /* 3. TYPOGRAPHY & SPACING */
+/* 3. TYPOGRAPHY & SPACING */
   .screen-heading h1 {
     font-size: clamp(2.2rem, 9vw, 3rem) !important;
     letter-spacing: -0.03em !important;
   }
-  
-  .customer-status-pill {
+
+.customer-status-pill {
     padding: 0.5rem 0.85rem !important;
     font-size: 0.75rem !important;
     border-radius: 8px !important;
   }
 
-  /* 4. FLOATING ACTION BUTTONS (Sticky CTAs for mobile) */
-  .admin-detail-panel .fixed-save-container,
-  .admin-detail-panel > div[style*="position: sticky"] {
-    position: fixed !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    background: rgba(255, 255, 255, 0.98) !important;
-    backdrop-filter: blur(12px) !important;
-    border-top: 1px solid rgba(0,0,0,0.08) !important;
-    padding: 1rem 1.25rem max(1rem, env(safe-area-inset-bottom)) !important;
-    z-index: 1000 !important;
-    box-shadow: 0 -4px 20px rgba(0,0,0,0.05) !important;
-  }
-
-  /* Add extra padding to the bottom of panels so the sticky button doesn't hide content */
-  .admin-detail-panel {
-    padding-bottom: 100px !important;
-  }
-  
-  .home-next-actions {
+.home-next-actions {
     display: grid !important;
     grid-template-columns: 1fr !important;
     gap: 0.75rem !important;
   }
-  
-  /* Make location search on admin take full width naturally */
-  .philippines-map-picker-container {
-    padding: 0.5rem !important;
-  }
 
-  /* --- FIGMA MOBILE UI OVERHAUL --- */
-  
-  /* Hero Section Background */
+/* --- FIGMA MOBILE UI OVERHAUL --- */
+
+  /* Establishes the containing block for absolutely-positioned hero children. */
   .hero-section {
     position: relative;
-    padding-top: 140px; /* Space for absolute background */
   }
 
-  .hero-visual {
-    position: absolute;
-    top: -68px; /* Offset header height */
-    left: 0;
-    right: 0;
-    height: 400px;
-    z-index: 0;
-    margin: 0;
-    padding: 0;
-  }
+  /* Removed here: an absolute `.hero-visual` (top:-68px, height:400px, z-index:0)
+     and a mask-image on `.hero-visual .truck-photo-panel`. Both were dead — the
+     later @media (max-width:768px) block forces `position: relative !important`,
+     `height: auto !important` and `mask-image: none !important`, and the panel is
+     `display: none` at this width. Verified by comparing computed styles before
+     and after removal: identical. Same reason `padding-top: 140px` is gone from
+     `.hero-section` above (a later rule sets 0.7rem !important). */
 
-  .hero-visual .truck-photo-panel {
-    border-radius: 0;
-    box-shadow: none;
-    height: 100%;
-    min-height: auto;
-    mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 100%);
-    -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 100%);
-  }
-
-  .hero-visual .truck-badge,
+.hero-visual .truck-badge,
   .hero-visual .coverage-card,
   .hero-visual .trust-card {
     display: none; /* Hide floating cards on mobile entirely to match mockup */
   }
 
-  .hero-copy {
+.hero-copy {
     position: relative;
     z-index: 10;
     margin-top: 20px;
   }
 
-  .eyebrow {
+.eyebrow {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -5381,18 +5416,18 @@ button:hover:not(:disabled) {
     font-weight: 700;
   }
 
-  .eyebrow-line {
+.eyebrow-line {
     width: 20px;
     height: 2px;
     background: var(--green);
     display: inline-block;
   }
 
-  .highlight-green {
+.highlight-green {
     color: var(--green);
   }
 
-  /* Redesigned Buttons */
+/* Redesigned Buttons */
   .hero-actions .primary-action,
   .hero-actions .secondary-action,
   .hero-actions .tertiary-action {
@@ -5405,33 +5440,33 @@ button:hover:not(:disabled) {
     border: 1px solid var(--green);
   }
 
-  .hero-actions .primary-action {
+.hero-actions .primary-action {
     background: var(--green);
     color: white;
   }
 
-  .hero-actions .secondary-action {
+.hero-actions .secondary-action {
     background: white;
     color: var(--green);
   }
 
-  .hero-actions .tertiary-action {
+.hero-actions .tertiary-action {
     background: white;
     color: var(--ink);
     border: 1px solid #e5e7eb;
   }
-  
-  .hero-actions .tertiary-action svg {
+
+.hero-actions .tertiary-action svg {
     color: var(--muted);
   }
 
-  .btn-left {
+.btn-left {
     display: flex;
     align-items: center;
     gap: 12px;
   }
 
-  /* Popular Routes */
+/* Popular Routes */
   .popular-routes-header {
     display: flex;
     justify-content: space-between;
@@ -5439,14 +5474,14 @@ button:hover:not(:disabled) {
     margin-top: 2.5rem;
   }
 
-  .popular-routes-header h3 {
+.popular-routes-header h3 {
     font-size: 0.85rem;
     font-weight: 700;
     color: var(--muted);
     letter-spacing: 0.05em;
   }
 
-  .view-all-routes {
+.view-all-routes {
     background: transparent;
     border: none;
     color: var(--green);
@@ -5458,14 +5493,14 @@ button:hover:not(:disabled) {
     padding: 0;
   }
 
-  .route-strip {
+.route-strip {
     display: grid !important;
     grid-template-columns: 1fr 1fr;
     gap: 0.75rem;
     margin-top: 1rem;
   }
 
-  .route-card {
+.route-card {
     background: white;
     border: 1px solid rgba(0,0,0,0.06);
     border-radius: 12px;
@@ -5476,7 +5511,7 @@ button:hover:not(:disabled) {
     box-shadow: 0 4px 12px rgba(0,0,0,0.02);
   }
 
-  .route-icon {
+.route-icon {
     width: 32px;
     height: 32px;
     border-radius: 50%;
@@ -5487,7 +5522,7 @@ button:hover:not(:disabled) {
     flex-shrink: 0;
   }
 
-  .route-card span {
+.route-card span {
     font-size: 0.8rem;
     font-weight: 600;
     flex-grow: 1;
@@ -5498,11 +5533,11 @@ button:hover:not(:disabled) {
     display: inline;
   }
 
-  .route-arrow {
+.route-arrow {
     color: var(--muted);
   }
 
-  /* How it Works */
+/* How it Works */
   .how-it-works {
     background: #f8faf9;
     border-radius: 16px;
@@ -5514,39 +5549,38 @@ button:hover:not(:disabled) {
     border: 1px solid rgba(0,0,0,0.03);
   }
 
-  .how-step {
+.how-step {
     flex-direction: row;
     align-items: center;
     gap: 1rem;
   }
 
-  .how-step-icon {
+.how-step-icon {
     width: 48px;
     height: 48px;
     background: transparent;
     border: 1px solid var(--green);
   }
 
-  .how-step-num {
+.how-step-num {
     top: -4px;
     right: -4px;
     background: var(--green-dark);
   }
 
-  .how-step-body {
+.how-step-body {
     flex-grow: 1;
   }
 
-  .how-step-body p {
+.how-step-body p {
     font-size: 0.75rem;
     line-height: 1.4;
   }
 
-  .how-step-arrow {
+.how-step-arrow {
     color: var(--muted);
     flex-shrink: 0;
-  }
-}
+  }}
 
 /* --- MOBILE BOTTOM NAVIGATION --- */
 .mobile-bottom-nav {
@@ -5566,10 +5600,10 @@ button:hover:not(:disabled) {
     padding: 0.5rem 1rem calc(0.5rem + env(safe-area-inset-bottom));
     justify-content: space-between;
     align-items: center;
-    z-index: 1000;
+    z-index: var(--z-bottom-nav);
   }
 
-  .mobile-nav-item {
+.mobile-nav-item {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -5582,25 +5616,23 @@ button:hover:not(:disabled) {
     padding: 0.5rem;
   }
 
-  .mobile-nav-item.active {
+.mobile-nav-item.active {
     color: var(--green);
   }
 
-  .mobile-nav-item .nav-icon {
+.mobile-nav-item .nav-icon {
     margin-bottom: 2px;
   }
 
-  /* Padding for main layout to account for bottom nav */
+/* Padding for main layout to account for bottom nav */
   .app-shell {
     padding-bottom: 80px;
   }
-  
-  /* Hide the old floating inquire button since we have a bottom nav */
+
+/* Hide the old floating inquire button since we have a bottom nav */
   .floating-inquire {
     display: none !important;
-  }
-}
-
+  }}
 
 /* ==========================================================================
    CLIENT-SIDE UX UPGRADES (Animations, Skeletons, Empty States)
@@ -5631,9 +5663,13 @@ button:hover:not(:disabled) {
 }
 
 .skeleton-header { height: 24px; width: 40%; }
+
 .skeleton-title { height: 28px; width: 70%; }
+
 .skeleton-line { height: 16px; width: 100%; }
+
 .skeleton-line.short { width: 50%; }
+
 .skeleton-button { height: 48px; width: 100%; border-radius: 8px; margin-top: 1rem; }
 
 /* --- PREMIUM EMPTY STATE --- */
@@ -5697,8 +5733,7 @@ button:hover:not(:disabled) {
   .customer-inquiry-card:hover {
     transform: translateY(-4px);
     box-shadow: 0 20px 40px -10px rgba(17, 24, 39, 0.08);
-  }
-}
+  }}
 
 .customer-details-collapse {
   animation: slideDownFade 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -5732,18 +5767,18 @@ button:hover:not(:disabled) {
     box-shadow: 0 1px 0 var(--line), 0 4px 16px rgba(17, 24, 39, 0.04);
   }
 
-  .brand-logo-img {
+.brand-logo-img {
     height: 46px;
   }
 
-  .desktop-nav {
+.desktop-nav {
     gap: 0.25rem;
     align-items: center;
     flex: 0 0 auto;
     margin: 0 auto;
   }
 
-  .desktop-nav button {
+.desktop-nav button {
     position: relative;
     padding: 0.5rem 0.85rem;
     border-radius: 8px;
@@ -5754,18 +5789,18 @@ button:hover:not(:disabled) {
     transition: color 0.2s, background 0.2s;
   }
 
-  .desktop-nav button:hover {
+.desktop-nav button:hover {
     background: var(--soft);
     color: var(--ink);
     transform: none;
   }
 
-  .desktop-nav button.active {
+.desktop-nav button.active {
     color: var(--green-dark);
     background: var(--soft-green);
   }
 
-  .desktop-nav button.active::after {
+.desktop-nav button.active::after {
     content: '';
     position: absolute;
     bottom: -2px;
@@ -5777,12 +5812,12 @@ button:hover:not(:disabled) {
     border-radius: 1px;
   }
 
-  .logout-button:hover {
+.logout-button:hover {
     background: #fff1f2 !important;
     transform: none !important;
   }
 
-  .header-call {
+.header-call {
     border-radius: 10px;
     padding: 0.6rem 1.1rem;
     font-size: 0.88rem;
@@ -5790,12 +5825,12 @@ button:hover:not(:disabled) {
     transition: opacity 0.2s, transform 0.15s;
   }
 
-  .header-call:hover {
+.header-call:hover {
     opacity: 0.88;
     transform: translateY(-1px);
   }
 
-  /* ─── HERO ───────────────────────────────────────── */
+/* ─── HERO ───────────────────────────────────────── */
   .hero-section {
     grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
     align-items: center;
@@ -5805,26 +5840,26 @@ button:hover:not(:disabled) {
     padding-bottom: 3rem;
   }
 
-  .hero-copy h1 {
+.hero-copy h1 {
     font-size: clamp(3rem, 4.5vw, 4.8rem);
     letter-spacing: -0.02em;
     line-height: 1.05;
   }
 
-  .hero-text {
+.hero-text {
     font-size: 1.1rem;
     max-width: 540px;
     line-height: 1.7;
     margin-top: 1.25rem;
   }
 
-  .eyebrow {
+.eyebrow {
     font-size: 0.8rem;
     letter-spacing: 0.12em;
     margin-bottom: 1rem;
   }
 
-  /* Hero actions — horizontal row on desktop */
+/* Hero actions — horizontal row on desktop */
   .hero-actions {
     display: flex;
     flex-direction: row;
@@ -5834,7 +5869,7 @@ button:hover:not(:disabled) {
     width: auto;
   }
 
-  .primary-action,
+.primary-action,
   .secondary-action {
     padding: 0.9rem 1.75rem;
     font-size: 0.92rem;
@@ -5842,18 +5877,18 @@ button:hover:not(:disabled) {
     transition: transform 0.18s, box-shadow 0.18s, opacity 0.18s;
   }
 
-  .primary-action:hover {
+.primary-action:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(22, 163, 74, 0.28);
   }
 
-  .secondary-action:hover {
+.secondary-action:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 18px rgba(17, 24, 39, 0.08);
     border-color: var(--ink);
   }
 
-  /* Route strip on desktop — flex wrap chips */
+/* Route strip on desktop — flex wrap chips */
   .route-strip {
     display: flex;
     flex-wrap: wrap;
@@ -5861,33 +5896,33 @@ button:hover:not(:disabled) {
     margin-top: 1.75rem;
   }
 
-  .route-strip span {
+.route-strip span {
     border-radius: 6px;
     font-size: 0.8rem;
     padding: 0.45rem 0.75rem;
   }
 
-  /* How It Works on desktop */
+/* How It Works on desktop */
   .how-it-works {
     margin-top: 2.5rem;
     padding-top: 2rem;
     gap: 1.5rem;
   }
 
-  .how-step-body strong {
+.how-step-body strong {
     font-size: 0.92rem;
   }
 
-  .how-step-body p {
+.how-step-body p {
     font-size: 0.83rem;
   }
 
-  /* Hero visual — image panel fills the right column */
+/* Hero visual — image panel fills the right column */
   .hero-visual {
     gap: 0;
   }
 
-  .truck-photo-panel {
+.truck-photo-panel {
     height: min(60vw, 620px);
     min-height: 540px;
     border-radius: 16px;
@@ -5895,7 +5930,7 @@ button:hover:not(:disabled) {
     box-shadow: 0 24px 64px rgba(17, 24, 39, 0.14);
   }
 
-  .truck-badge {
+.truck-badge {
     position: absolute;
     bottom: 1.75rem;
     left: -1.25rem;
@@ -5908,7 +5943,7 @@ button:hover:not(:disabled) {
     animation: fade-in-up 0.5s 0.1s ease both;
   }
 
-  .coverage-card {
+.coverage-card {
     position: absolute;
     top: 1.25rem;
     right: -1rem;
@@ -5920,7 +5955,7 @@ button:hover:not(:disabled) {
     animation: slide-in-right 0.45s 0.2s ease both;
   }
 
-  .trust-card {
+.trust-card {
     position: absolute;
     bottom: -1.25rem;
     right: 1.5rem;
@@ -5932,7 +5967,7 @@ button:hover:not(:disabled) {
     animation: fade-in-up 0.45s 0.3s ease both;
   }
 
-  /* ─── HOME NEXT ACTIONS ──────────────────────────── */
+/* ─── HOME NEXT ACTIONS ──────────────────────────── */
   .home-next-actions {
     display: flex;
     flex-direction: row;
@@ -5942,7 +5977,7 @@ button:hover:not(:disabled) {
     margin: 0 auto;
   }
 
-  .home-next-actions button {
+.home-next-actions button {
     flex: 1;
     max-width: 280px;
     border-radius: 10px;
@@ -5951,46 +5986,46 @@ button:hover:not(:disabled) {
     transition: transform 0.18s, box-shadow 0.18s;
   }
 
-  .home-next-actions button:first-child:hover {
+.home-next-actions button:first-child:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(22, 163, 74, 0.25);
   }
 
-  .home-next-actions button:last-child:hover {
+.home-next-actions button:last-child:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 18px rgba(17, 24, 39, 0.08);
     border-color: var(--ink);
   }
 
-  /* ─── SECTION HEADINGS ───────────────────────────── */
+/* ─── SECTION HEADINGS ───────────────────────────── */
   .screen-heading h1 {
     font-size: clamp(2.8rem, 4.5vw, 5.2rem);
     letter-spacing: -0.025em;
     line-height: 0.97;
   }
 
-  .screen-heading p {
+.screen-heading p {
     font-size: 1.05rem;
     line-height: 1.65;
     max-width: 600px;
   }
 
-  .section-heading h2 {
+.section-heading h2 {
     font-size: clamp(2.5rem, 4vw, 4.5rem);
     letter-spacing: -0.02em;
   }
 
-  /* ─── FLEET GRID ──────────────────────────────────── */
+/* ─── FLEET GRID ──────────────────────────────────── */
   .fleet-section {
     padding: 4rem 2.5rem;
   }
 
-  .fleet-grid {
+.fleet-grid {
     grid-template-columns: repeat(3, 1fr);
     gap: 1.75rem;
   }
 
-  .fleet-card {
+.fleet-card {
     border-radius: 16px;
     padding: 1.5rem;
     gap: 1.15rem;
@@ -6000,61 +6035,61 @@ button:hover:not(:disabled) {
       border-color 0.22s;
   }
 
-  .fleet-card:hover {
+.fleet-card:hover {
     transform: translateY(-6px);
     box-shadow: 0 20px 48px -8px rgba(17, 24, 39, 0.13);
     border-color: rgba(22, 163, 74, 0.45);
   }
 
-  .fleet-card-header h3 {
+.fleet-card-header h3 {
     font-size: 1.3rem;
   }
 
-  /* ─── TRUCK SHOWCASE (old truck view) ─────────────── */
+/* ─── TRUCK SHOWCASE (old truck view) ─────────────── */
   .truck-showcase {
     grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
     align-items: stretch;
     gap: 1.5rem;
   }
 
-  .truck-image-card {
+.truck-image-card {
     height: 480px;
     border-radius: 14px;
   }
 
-  .truck-details {
+.truck-details {
     grid-template-columns: 1fr;
     align-content: start;
     gap: 1rem;
   }
 
-  .detail-card {
+.detail-card {
     border-radius: 10px;
     padding: 1.15rem;
     transition: box-shadow 0.2s;
   }
 
-  .detail-card:hover {
+.detail-card:hover {
     box-shadow: 0 6px 18px rgba(17, 24, 39, 0.07);
   }
 
-  .truck-highlights {
+.truck-highlights {
     grid-template-columns: repeat(3, 1fr);
     gap: 0.85rem;
   }
 
-  .highlight-item {
+.highlight-item {
     border-radius: 10px;
     padding: 1rem;
     transition: box-shadow 0.2s, border-color 0.2s;
   }
 
-  .highlight-item:hover {
+.highlight-item:hover {
     box-shadow: 0 4px 14px rgba(17, 24, 39, 0.06);
     border-color: rgba(22, 163, 74, 0.3);
   }
 
-  /* ─── INQUIRY FORM ───────────────────────────────── */
+/* ─── INQUIRY FORM ───────────────────────────────── */
   .inquiry-section {
     display: grid;
     grid-template-columns: minmax(0, 0.34fr) minmax(0, 0.66fr);
@@ -6063,18 +6098,18 @@ button:hover:not(:disabled) {
     padding-top: 2rem;
   }
 
-  .inquiry-heading {
+.inquiry-heading {
     position: sticky;
     top: 88px;
   }
 
-  .form-step {
+.form-step {
     padding: 1.5rem;
     border-radius: 14px;
     box-shadow: 0 4px 16px rgba(17, 24, 39, 0.04);
   }
 
-  /* ─── AUTH PANEL ──────────────────────────────────── */
+/* ─── AUTH PANEL ──────────────────────────────────── */
   .auth-panel {
     grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
     gap: 2rem;
@@ -6082,98 +6117,98 @@ button:hover:not(:disabled) {
     border-radius: 14px;
   }
 
-  .auth-copy {
+.auth-copy {
     border-radius: 12px;
   }
 
-  .auth-form {
+.auth-form {
     border-radius: 12px;
   }
 
-  /* ─── MY INQUIRIES / CUSTOMER LIST ───────────────── */
+/* ─── MY INQUIRIES / CUSTOMER LIST ───────────────── */
   .my-inquiries-screen {
     gap: 1.5rem;
   }
 
-  .recent-card {
+.recent-card {
     border-radius: 12px;
     padding: 1.15rem;
     transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
   }
 
-  .recent-card:hover {
+.recent-card:hover {
     box-shadow: 0 8px 22px rgba(17, 24, 39, 0.07);
     transform: translateY(-2px);
     border-color: rgba(22, 163, 74, 0.3);
   }
 
-  .customer-inquiry-card {
+.customer-inquiry-card {
     border-radius: 14px;
     padding: 1.25rem;
   }
 
-  /* ─── ADMIN DASHBOARD ────────────────────────────── */
+/* ─── ADMIN DASHBOARD ────────────────────────────── */
   .admin-dashboard {
     padding-top: 2rem;
     padding-bottom: 3rem;
   }
 
-  .admin-heading {
+.admin-heading {
     margin-bottom: 1.5rem;
   }
 
-  .admin-inquiry-card {
+.admin-inquiry-card {
     border-radius: 10px;
     transition: box-shadow 0.2s, border-color 0.2s, transform 0.18s;
   }
 
-  .admin-inquiry-card:hover {
+.admin-inquiry-card:hover {
     box-shadow: 0 6px 18px rgba(17, 24, 39, 0.07);
     transform: translateY(-1px);
   }
 
-  .admin-kpi {
+.admin-kpi {
     border-radius: 10px;
     padding: 1rem;
     transition: box-shadow 0.2s, transform 0.18s;
   }
 
-  .admin-kpi:hover:not(.active) {
+.admin-kpi:hover:not(.active) {
     box-shadow: 0 4px 14px rgba(17, 24, 39, 0.06);
     transform: translateY(-1px);
   }
 
-  .admin-kpi.active {
+.admin-kpi.active {
     box-shadow: 0 6px 20px rgba(17, 24, 39, 0.18);
   }
 
-  .admin-detail {
+.admin-detail {
     border-radius: 12px;
   }
 
-  /* ─── PROFILE PANEL ──────────────────────────────── */
+/* ─── PROFILE PANEL ──────────────────────────────── */
   .profile-panel {
     grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
     gap: 2rem;
     align-items: start;
   }
 
-  .profile-heading,
+.profile-heading,
   .profile-form,
   .profile-summary {
     border-radius: 12px;
   }
 
-  /* ─── FOOTER ─────────────────────────────────────── */
+/* ─── FOOTER ─────────────────────────────────────── */
   .site-footer {
     padding: 3rem 2.5rem;
   }
 
-  .footer-brand img {
+.footer-brand img {
     height: 46px;
   }
 
-  /* ─── FLOATING CTA ───────────────────────────────── */
+/* ─── FLOATING CTA ───────────────────────────────── */
   .floating-inquire {
     display: flex;
     position: fixed;
@@ -6189,20 +6224,20 @@ button:hover:not(:disabled) {
     font-weight: 700;
     box-shadow: 0 8px 28px rgba(17, 24, 39, 0.22);
     transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
-    z-index: 800;
+    z-index: var(--z-floating-action);
   }
 
-  .floating-inquire:hover {
+.floating-inquire:hover {
     transform: translateY(-3px);
     box-shadow: 0 14px 36px rgba(17, 24, 39, 0.28);
     background: var(--green);
   }
 
-  .floating-inquire.hidden {
+.floating-inquire.hidden {
     display: none;
   }
 
-  /* ─── INPUTS / FORMS ─────────────────────────────── */
+/* ─── INPUTS / FORMS ─────────────────────────────── */
   input,
   select,
   textarea {
@@ -6210,34 +6245,33 @@ button:hover:not(:disabled) {
     transition: border-color 0.18s, box-shadow 0.18s;
   }
 
-  input:hover,
+input:hover,
   select:hover,
   textarea:hover {
     border-color: #bfc9c4;
   }
 
-  /* ─── GENERAL INTERACTION POLISH ─────────────────── */
+/* ─── GENERAL INTERACTION POLISH ─────────────────── */
   .step-nav-button {
     border-radius: 10px;
     transition: transform 0.18s, box-shadow 0.18s, background 0.18s;
   }
 
-  .step-nav-button.next:hover:not(:disabled) {
+.step-nav-button.next:hover:not(:disabled) {
     transform: translateY(-2px);
     box-shadow: 0 8px 20px rgba(22, 163, 74, 0.25);
   }
 
-  .step-nav-button.back:hover {
+.step-nav-button.back:hover {
     background: var(--soft);
     transform: none;
     box-shadow: none;
   }
 
-  /* App screens get more breathing room */
+/* App screens get more breathing room */
   .app-screen {
     gap: 1.75rem;
-  }
-}
+  }}
 
 /* ─── EXTRA WIDE (1280px+) ────────────────────────────────── */
 @media (min-width: 1280px) {
@@ -6245,53 +6279,52 @@ button:hover:not(:disabled) {
     padding: 0 3rem;
   }
 
-  .hero-section {
+.hero-section {
     padding-left: 3rem;
     padding-right: 3rem;
     gap: 5rem;
   }
 
-  .hero-copy h1 {
+.hero-copy h1 {
     font-size: clamp(3.8rem, 5vw, 5.6rem);
   }
 
-  .hero-text {
+.hero-text {
     font-size: 1.15rem;
     max-width: 580px;
   }
 
-  .home-next-actions {
+.home-next-actions {
     padding-left: 3rem;
     padding-right: 3rem;
   }
 
-  .fleet-section {
+.fleet-section {
     padding-left: 3rem;
     padding-right: 3rem;
     max-width: 1380px;
   }
 
-  .fleet-grid {
+.fleet-grid {
     gap: 2rem;
   }
 
-  .admin-dashboard {
+.admin-dashboard {
     padding: 2rem 3rem 4rem;
   }
 
-  .admin-workspace {
+.admin-workspace {
     grid-template-columns: minmax(300px, 0.35fr) minmax(0, 0.65fr);
   }
 
-  .truck-photo-panel {
+.truck-photo-panel {
     height: min(55vw, 660px);
     min-height: 580px;
   }
 
-  .screen-heading h1 {
+.screen-heading h1 {
     font-size: clamp(3.5rem, 5vw, 6rem);
-  }
-}
+  }}
 
 /* ─── DESKTOP HOVER: OVERRIDE MOBILE BUTTON RESET ────────── */
 @media (min-width: 1024px) {
@@ -6300,7 +6333,7 @@ button:hover:not(:disabled) {
     transform: none;
   }
 
-  /* But re-apply lift to specific interactive CTA elements */
+/* But re-apply lift to specific interactive CTA elements */
   .primary-action:hover,
   .empty-state-cta:hover,
   .admin-new-notice:hover,
@@ -6311,28 +6344,27 @@ button:hover:not(:disabled) {
     transform: translateY(-2px);
   }
 
-  /* Subtle lift for admin cards */
+/* Subtle lift for admin cards */
   .admin-inquiry-card:hover {
     transform: translateY(-1px);
   }
 
-  /* Profile save button hover */
+/* Profile save button hover */
   .profile-save-button:hover:not(:disabled) {
     opacity: 0.88;
     transform: translateY(-1px);
   }
 
-  /* Auth actions hover */
+/* Auth actions hover */
   .auth-actions button:hover:not(:disabled) {
     opacity: 0.88;
     transform: translateY(-1px);
   }
 
-  /* Google auth button — no transform, has its own styling */
+/* Google auth button — no transform, has its own styling */
   .google-auth-button:hover {
     transform: none;
-  }
-}
+  }}
 
 /* Final admin console cascade locks: legacy admin styles appear above this point. */
 .admin-dashboard.admin-console {
@@ -6452,27 +6484,25 @@ button:hover:not(:disabled) {
     place-items: center;
   }
 
-  .admin-console .admin-console-shell,
+.admin-console .admin-console-shell,
   .admin-console .admin-slide-panel,
   .admin-console .admin-slide-backdrop,
   .admin-console .toast-container {
     display: none !important;
   }
 
-  .admin-console .admin-desktop-gate {
+.admin-console .admin-desktop-gate {
     display: flex !important;
     max-width: 520px;
     margin: 0;
     padding: 2rem;
     border-radius: 14px;
-  }
-}
+  }}
 
 @media (min-width: 1025px) {
   .admin-console .admin-desktop-gate {
     display: none !important;
-  }
-}
+  }}
 
 /* Final mobile home-screen fix: prevent route cards and onboarding blocks from overflowing phones. */
 @media (max-width: 768px) {
@@ -6484,7 +6514,7 @@ button:hover:not(:disabled) {
     overflow-x: hidden;
   }
 
-  .site-header,
+.site-header,
   .hero-section,
   .truck-section,
   .auth-panel,
@@ -6500,12 +6530,12 @@ button:hover:not(:disabled) {
     padding-left: 1rem;
   }
 
-  .hero-section {
+.hero-section {
     gap: 1rem;
     padding-top: 1rem;
   }
 
-  .hero-copy,
+.hero-copy,
   .hero-actions,
   .popular-routes-header,
   .route-strip,
@@ -6515,31 +6545,31 @@ button:hover:not(:disabled) {
     min-width: 0;
   }
 
-  .popular-routes-header {
+.popular-routes-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
   }
 
-  .popular-routes-header h3,
+.popular-routes-header h3,
   .view-all-routes {
     min-width: 0;
     white-space: nowrap;
   }
 
-  .view-all-routes {
+.view-all-routes {
     flex: 0 0 auto;
   }
 
-  .route-strip {
+.route-strip {
     display: grid !important;
     grid-template-columns: 1fr !important;
     gap: 0.65rem !important;
     overflow: visible !important;
   }
 
-  .route-card {
+.route-card {
     display: grid !important;
     grid-template-columns: 34px minmax(0, 1fr) 18px;
     align-items: center;
@@ -6550,7 +6580,7 @@ button:hover:not(:disabled) {
     gap: 0.65rem !important;
   }
 
-  .route-card span {
+.route-card span {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -6558,43 +6588,41 @@ button:hover:not(:disabled) {
     font-size: 0.82rem !important;
   }
 
-  .route-icon {
+.route-icon {
     width: 34px !important;
     height: 34px !important;
   }
 
-  .route-arrow {
+.route-arrow {
     justify-self: end;
     flex: 0 0 auto;
   }
 
-  .how-it-works {
+.how-it-works {
     margin-top: 1.5rem !important;
     padding: 1rem !important;
   }
 
-  .how-step {
+.how-step {
     display: grid !important;
     grid-template-columns: 48px minmax(0, 1fr) 18px;
     width: 100%;
     min-width: 0;
   }
 
-  .how-step-body {
+.how-step-body {
     min-width: 0;
   }
 
-  .how-step-body strong,
+.how-step-body strong,
   .how-step-body p {
     overflow-wrap: anywhere;
-  }
-}
+  }}
 
 @media (min-width: 520px) and (max-width: 768px) {
   .route-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
-}
+  }}
 
 /* Mobile hero redesign: keep the truck visual premium, never behind text. */
 @media (max-width: 768px) {
@@ -6609,7 +6637,7 @@ button:hover:not(:disabled) {
       linear-gradient(180deg, #ffffff 0%, #f6faf7 100%);
   }
 
-  .hero-visual {
+.hero-visual {
     position: relative !important;
     order: 0;
     top: auto !important;
@@ -6623,7 +6651,7 @@ button:hover:not(:disabled) {
     padding: 0 !important;
   }
 
-  .hero-visual .truck-photo-panel {
+.hero-visual .truck-photo-panel {
     position: relative;
     height: clamp(188px, 52vw, 250px) !important;
     min-height: 0 !important;
@@ -6636,7 +6664,7 @@ button:hover:not(:disabled) {
     -webkit-mask-image: none !important;
   }
 
-  .hero-visual .truck-photo-panel::after {
+.hero-visual .truck-photo-panel::after {
     content: '';
     position: absolute;
     inset: 0;
@@ -6646,7 +6674,7 @@ button:hover:not(:disabled) {
     pointer-events: none;
   }
 
-  .hero-visual .truck-photo-panel img {
+.hero-visual .truck-photo-panel img {
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -6655,7 +6683,7 @@ button:hover:not(:disabled) {
     filter: saturate(1.04) contrast(1.02) !important;
   }
 
-  .hero-mobile-fleet-chip,
+.hero-mobile-fleet-chip,
   .hero-mobile-route-card {
     position: absolute;
     z-index: 2;
@@ -6667,7 +6695,7 @@ button:hover:not(:disabled) {
     backdrop-filter: blur(12px);
   }
 
-  .hero-mobile-fleet-chip {
+.hero-mobile-fleet-chip {
     top: 0.75rem;
     left: 0.75rem;
     gap: 0.35rem;
@@ -6679,7 +6707,7 @@ button:hover:not(:disabled) {
     font-weight: 900;
   }
 
-  .hero-mobile-route-card {
+.hero-mobile-route-card {
     right: 0.75rem;
     bottom: 0.75rem;
     gap: 0.45rem;
@@ -6694,11 +6722,11 @@ button:hover:not(:disabled) {
     text-transform: uppercase;
   }
 
-  .hero-mobile-route-card svg {
+.hero-mobile-route-card svg {
     color: #16a34a;
   }
 
-  .hero-copy {
+.hero-copy {
     order: 1;
     z-index: 2 !important;
     display: grid;
@@ -6708,7 +6736,7 @@ button:hover:not(:disabled) {
     color: var(--ink);
   }
 
-  .hero-copy .eyebrow {
+.hero-copy .eyebrow {
     width: fit-content;
     margin: 0;
     padding: 0.5rem 0.7rem;
@@ -6721,11 +6749,11 @@ button:hover:not(:disabled) {
     letter-spacing: 0.06em;
   }
 
-  .hero-copy .eyebrow-line {
+.hero-copy .eyebrow-line {
     display: none;
   }
 
-  .hero-copy h1 {
+.hero-copy h1 {
     max-width: 10.5ch;
     margin: 0;
     color: #0f172a !important;
@@ -6734,11 +6762,11 @@ button:hover:not(:disabled) {
     letter-spacing: 0 !important;
   }
 
-  .hero-copy .highlight-green {
+.hero-copy .highlight-green {
     color: #16a34a !important;
   }
 
-  .hero-text {
+.hero-text {
     max-width: 100%;
     margin: 0 !important;
     color: #52605a !important;
@@ -6747,14 +6775,14 @@ button:hover:not(:disabled) {
     font-weight: 700;
   }
 
-  .hero-proof-grid {
+.hero-proof-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.55rem;
     margin: 0.1rem 0 0.15rem;
   }
 
-  .hero-proof-grid div {
+.hero-proof-grid div {
     display: grid;
     gap: 0.18rem;
     min-width: 0;
@@ -6765,27 +6793,27 @@ button:hover:not(:disabled) {
     box-shadow: 0 8px 22px rgba(15, 23, 42, 0.045);
   }
 
-  .hero-proof-grid strong {
+.hero-proof-grid strong {
     color: #0f172a;
     font-size: 0.95rem;
     line-height: 1;
   }
 
-  .hero-proof-grid span {
+.hero-proof-grid span {
     color: #64748b;
     font-size: 0.63rem;
     font-weight: 850;
     line-height: 1.2;
   }
 
-  .hero-actions {
+.hero-actions {
     display: grid !important;
     grid-template-columns: 1fr !important;
     gap: 0.65rem !important;
     margin-top: 0.1rem !important;
   }
 
-  .hero-actions .primary-action,
+.hero-actions .primary-action,
   .hero-actions .secondary-action,
   .hero-actions .tertiary-action {
     min-height: 58px;
@@ -6796,49 +6824,48 @@ button:hover:not(:disabled) {
     box-shadow: none !important;
   }
 
-  .hero-actions .primary-action {
+.hero-actions .primary-action {
     background: #16a34a !important;
     border-color: #16a34a !important;
     box-shadow: 0 14px 26px rgba(22, 163, 74, 0.24) !important;
   }
 
-  .hero-actions .secondary-action,
+.hero-actions .secondary-action,
   .hero-actions .tertiary-action {
     background: #fff !important;
     border-color: rgba(15, 23, 42, 0.09) !important;
     box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04) !important;
   }
 
-  .hero-actions .secondary-action {
+.hero-actions .secondary-action {
     color: #0f7a39 !important;
   }
 
-  .hero-actions .tertiary-action {
+.hero-actions .tertiary-action {
     color: #111827 !important;
   }
 
-  .btn-left {
+.btn-left {
     min-width: 0;
   }
 
-  .popular-routes-header {
+.popular-routes-header {
     margin-top: 1.45rem !important;
   }
 
-  .popular-routes-header h3 {
+.popular-routes-header h3 {
     margin: 0;
     color: #475569 !important;
     font-size: 0.74rem !important;
     font-weight: 950 !important;
   }
 
-  .view-all-routes {
+.view-all-routes {
     min-height: 32px !important;
     color: #0f7a39 !important;
     font-size: 0.8rem !important;
     font-weight: 850 !important;
-  }
-}
+  }}
 
 /* ==========================================================================
    CLIENT MOBILE APP-STYLE POLISH
@@ -6856,7 +6883,7 @@ button:hover:not(:disabled) {
       #f7fbf8;
   }
 
-  .app-shell,
+.app-shell,
   .app-shell main,
   .app-screen,
   .hero-section,
@@ -6868,7 +6895,7 @@ button:hover:not(:disabled) {
     overflow-x: clip;
   }
 
-  .hero-section {
+.hero-section {
     display: grid !important;
     gap: 0.8rem !important;
     padding: 0.82rem 0.82rem 1.05rem !important;
@@ -6878,22 +6905,22 @@ button:hover:not(:disabled) {
       linear-gradient(180deg, #fbfefc 0%, #f2faf5 100%) !important;
   }
 
-  .hero-section .hero-visual {
+.hero-section .hero-visual {
     order: 1;
   }
 
-  .hero-section .hero-copy {
+.hero-section .hero-copy {
     order: 0;
   }
 
-  .hero-supporting-content {
+.hero-supporting-content {
     order: 2;
     display: grid;
     gap: 0.75rem;
     min-width: 0;
   }
 
-  .hero-app-mockup {
+.hero-app-mockup {
     position: relative;
     display: grid;
     grid-template-columns: 1fr;
@@ -6906,46 +6933,16 @@ button:hover:not(:disabled) {
     padding: 0;
   }
 
-  .hero-app-mockup::before {
+.hero-app-mockup::before {
     content: none;
   }
 
-  .hero-app-mockup > * {
+.hero-app-mockup > * {
     position: relative;
     z-index: 1;
   }
 
-  .hero-rating-bubble {
-    position: absolute;
-    top: 0.72rem;
-    left: 0.72rem;
-    z-index: 3;
-    display: inline-flex;
-    gap: 0.24rem;
-    align-items: center;
-    max-width: calc(100% - 1.4rem);
-    padding: 0.42rem 0.58rem;
-    background: rgba(255, 255, 255, 0.9);
-    border: 1px solid rgba(22, 163, 74, 0.16);
-    border-radius: 999px;
-    box-shadow: 0 10px 24px rgba(15, 118, 62, 0.12);
-    backdrop-filter: blur(12px);
-  }
-
-  .hero-rating-bubble strong {
-    color: #0f172a;
-    font-size: 0.68rem;
-    line-height: 1;
-  }
-
-  .hero-rating-bubble span {
-    color: #64748b;
-    font-size: 0.5rem;
-    font-weight: 850;
-    text-transform: uppercase;
-  }
-
-  .hero-phone-card {
+.hero-phone-card {
     position: relative;
     display: grid;
     min-width: 0;
@@ -6956,7 +6953,7 @@ button:hover:not(:disabled) {
     overflow: hidden;
   }
 
-  .hero-phone-welcome {
+.hero-phone-welcome {
     min-height: 298px;
     padding: 0.76rem;
     align-content: end;
@@ -6967,11 +6964,11 @@ button:hover:not(:disabled) {
       #fff;
   }
 
-  .phone-top-bar {
+.phone-top-bar {
     display: none;
   }
 
-  .phone-card-label {
+.phone-card-label {
     position: absolute;
     top: 0.72rem;
     right: 0.72rem;
@@ -6994,74 +6991,20 @@ button:hover:not(:disabled) {
     transform: none;
   }
 
-  .phone-illustration {
-    position: relative;
-    display: grid;
-    place-items: center;
-    width: 100%;
-    height: 198px;
-    margin: 0 0 0.82rem;
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(230, 248, 237, 0.92)),
-      #eefaf3;
-    border: 0;
-    border-radius: 20px;
-    box-shadow:
-      inset 0 -60px 80px rgba(15, 118, 62, 0.08),
-      0 18px 32px rgba(15, 118, 62, 0.12);
-    overflow: hidden;
-  }
-
-  .phone-illustration::before {
-    content: '';
-    position: absolute;
-    inset: auto 12px 11px;
-    height: 15px;
-    background: rgba(15, 118, 62, 0.18);
-    border-radius: 50%;
-    filter: blur(6px);
-  }
-
-  .phone-illustration img {
-    position: relative;
-    z-index: 1;
-    width: calc(100% - 18px);
-    height: calc(100% - 18px);
-    object-fit: contain;
-    object-position: center;
-    border-radius: 16px;
-    transform: none;
-  }
-
-  .phone-illustration svg {
-    position: absolute;
-    z-index: 2;
-    right: 0.74rem;
-    bottom: 0.72rem;
-    top: auto;
-    width: 28px;
-    height: 28px;
-    padding: 0.34rem;
-    color: #fff;
-    background: #16a34a;
-    border-radius: 999px;
-    box-shadow: 0 8px 18px rgba(22, 163, 74, 0.28);
-  }
-
-  .hero-phone-welcome > span {
+.hero-phone-welcome > span {
     color: #64748b;
     font-size: 0.6rem;
     font-weight: 900;
     text-transform: uppercase;
   }
 
-  .hero-phone-welcome > strong {
+.hero-phone-welcome > strong {
     color: #0f172a;
     font-size: 1.08rem;
     line-height: 1.2;
   }
 
-  .hero-phone-card button {
+.hero-phone-card button {
     min-height: 40px;
     width: min(100%, 190px);
     margin-top: 0.68rem;
@@ -7075,11 +7018,11 @@ button:hover:not(:disabled) {
     pointer-events: none;
   }
 
-  .hero-phone-status {
+.hero-phone-status {
     display: none;
   }
 
-  .phone-top-row,
+.phone-top-row,
   .phone-tabs,
   .phone-job-list div,
   .phone-nav-dots {
@@ -7087,31 +7030,31 @@ button:hover:not(:disabled) {
     align-items: center;
   }
 
-  .phone-top-row {
+.phone-top-row {
     justify-content: space-between;
     gap: 0.5rem;
     margin-bottom: 0.65rem;
   }
 
-  .phone-top-row span {
+.phone-top-row span {
     color: #0f172a;
     font-size: 0.68rem;
     font-weight: 950;
   }
 
-  .phone-top-row strong,
+.phone-top-row strong,
   .phone-tabs .active {
     color: #fff;
     background: #16a34a;
   }
 
-  .phone-top-row strong {
+.phone-top-row strong {
     padding: 0.18rem 0.42rem;
     border-radius: 999px;
     font-size: 0.54rem;
   }
 
-  .phone-tabs {
+.phone-tabs {
     gap: 0.25rem;
     padding: 0.2rem;
     background: #f1f8f3;
@@ -7119,7 +7062,7 @@ button:hover:not(:disabled) {
     margin-bottom: 0.65rem;
   }
 
-  .phone-tabs span {
+.phone-tabs span {
     flex: 1;
     padding: 0.28rem 0.35rem;
     color: #64748b;
@@ -7129,12 +7072,12 @@ button:hover:not(:disabled) {
     text-align: center;
   }
 
-  .phone-job-list {
+.phone-job-list {
     display: grid;
     gap: 0.45rem;
   }
 
-  .phone-job-list div {
+.phone-job-list div {
     gap: 0.35rem;
     min-height: 38px;
     padding: 0.45rem;
@@ -7143,12 +7086,12 @@ button:hover:not(:disabled) {
     border-radius: 10px;
   }
 
-  .phone-job-list svg {
+.phone-job-list svg {
     color: #16a34a;
     flex: 0 0 auto;
   }
 
-  .phone-job-list span {
+.phone-job-list span {
     min-width: 0;
     flex: 1;
     color: #0f172a;
@@ -7159,36 +7102,32 @@ button:hover:not(:disabled) {
     white-space: nowrap;
   }
 
-  .phone-job-list strong {
+.phone-job-list strong {
     color: #16a34a;
     font-size: 0.52rem;
   }
 
-  .phone-nav-dots {
+.phone-nav-dots {
     justify-content: center;
     gap: 0.32rem;
     margin-top: auto;
     padding-top: 0.85rem;
   }
 
-  .phone-nav-dots span {
+.phone-nav-dots span {
     width: 5px;
     height: 5px;
     background: #cbd5d0;
     border-radius: 50%;
   }
 
-  .phone-nav-dots .active {
+.phone-nav-dots .active {
     width: 14px;
     background: #16a34a;
     border-radius: 999px;
   }
 
-  .hero-phone-route {
-    display: none;
-  }
-
-  .phone-map-grid {
+.phone-map-grid {
     position: absolute;
     inset: 0;
     display: grid;
@@ -7196,11 +7135,11 @@ button:hover:not(:disabled) {
     opacity: 0.42;
   }
 
-  .phone-map-grid span {
+.phone-map-grid span {
     border: 1px solid #d8efe0;
   }
 
-  .route-truck {
+.route-truck {
     position: absolute;
     top: 1.1rem;
     right: 1.4rem;
@@ -7215,7 +7154,7 @@ button:hover:not(:disabled) {
     transform: rotate(-10deg);
   }
 
-  .driver-chip {
+.driver-chip {
     position: relative;
     z-index: 2;
     display: grid;
@@ -7230,7 +7169,7 @@ button:hover:not(:disabled) {
     backdrop-filter: blur(10px);
   }
 
-  .driver-chip img {
+.driver-chip img {
     grid-row: span 2;
     width: 34px;
     height: 34px;
@@ -7239,58 +7178,51 @@ button:hover:not(:disabled) {
     border-radius: 50%;
   }
 
-  .driver-chip strong {
+.driver-chip strong {
     color: #0f172a;
     font-size: 0.72rem;
   }
 
-  .driver-chip span {
+.driver-chip span {
     color: #16a34a;
     font-size: 0.58rem;
     font-weight: 900;
   }
 
-  .hero-phone-route button {
-    position: relative;
-    z-index: 2;
-    width: min(84px, 100%);
-    margin: 0 0 0 0.55rem;
-  }
-
-  .hero-section .truck-photo-panel,
+.hero-section .truck-photo-panel,
   .hero-section .truck-badge,
   .hero-section .coverage-card,
   .hero-section .trust-card {
     display: none !important;
   }
 
-  .hero-copy {
+.hero-copy {
     padding-top: 0 !important;
   }
 
-  .hero-copy h1 {
+.hero-copy h1 {
     max-width: 100% !important;
     font-size: clamp(1.78rem, 8.7vw, 2.35rem) !important;
     line-height: 0.99 !important;
     margin-bottom: 0.52rem !important;
   }
 
-  .hero-text {
+.hero-text {
     font-size: 0.88rem !important;
     line-height: 1.45 !important;
     margin-bottom: 0.65rem !important;
   }
 
-  .hero-proof-grid {
+.hero-proof-grid {
     margin-top: 0.75rem !important;
   }
 
-  .hero-actions {
+.hero-actions {
     gap: 0.52rem !important;
     margin-top: 0 !important;
   }
 
-  .hero-actions .primary-action,
+.hero-actions .primary-action,
   .hero-actions .secondary-action,
   .hero-actions .tertiary-action {
     display: grid !important;
@@ -7304,7 +7236,7 @@ button:hover:not(:disabled) {
     line-height: 1 !important;
   }
 
-  .hero-actions .btn-left {
+.hero-actions .btn-left {
     display: inline-flex !important;
     align-items: center !important;
     gap: 0.65rem !important;
@@ -7313,18 +7245,18 @@ button:hover:not(:disabled) {
     white-space: nowrap;
   }
 
-  .hero-actions .btn-left svg,
+.hero-actions .btn-left svg,
   .hero-actions > button > svg {
     flex: 0 0 auto;
     width: 18px;
     height: 18px;
   }
 
-  .hero-actions > button > svg {
+.hero-actions > button > svg {
     justify-self: end;
   }
 
-  .inquiry-section {
+.inquiry-section {
     display: grid !important;
     gap: 0.85rem !important;
     padding-top: 1rem !important;
@@ -7332,7 +7264,7 @@ button:hover:not(:disabled) {
     background: #f7fbf8;
   }
 
-  .inquiry-heading {
+.inquiry-heading {
     position: static !important;
     display: grid;
     gap: 0.75rem;
@@ -7343,22 +7275,22 @@ button:hover:not(:disabled) {
     box-shadow: 0 14px 36px rgba(15, 23, 42, 0.05);
   }
 
-  .inquiry-heading h2 {
+.inquiry-heading h2 {
     font-size: clamp(1.7rem, 8vw, 2.25rem) !important;
     line-height: 1.02 !important;
   }
 
-  .inquiry-heading p {
+.inquiry-heading p {
     margin: 0 !important;
     font-size: 0.93rem !important;
     line-height: 1.55 !important;
   }
 
-  .inquiry-heading > div[style] {
+.inquiry-heading > div[style] {
     margin-top: 0 !important;
   }
 
-  .backend-required,
+.backend-required,
   .step-progress,
   .inquiry-form,
   .inquiry-summary,
@@ -7368,13 +7300,13 @@ button:hover:not(:disabled) {
     min-width: 0;
   }
 
-  .backend-required {
+.backend-required {
     border-radius: 16px !important;
     border-color: #bbf7d0 !important;
     background: #f0fdf4 !important;
   }
 
-  .step-progress {
+.step-progress {
     margin: 0 !important;
     padding: 0.75rem 0.65rem !important;
     overflow: hidden;
@@ -7384,7 +7316,7 @@ button:hover:not(:disabled) {
     box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
   }
 
-  .step-indicator-v2 {
+.step-indicator-v2 {
     display: grid !important;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0.35rem !important;
@@ -7392,16 +7324,16 @@ button:hover:not(:disabled) {
     width: 100%;
   }
 
-  .step-pip {
+.step-pip {
     min-width: 0 !important;
     width: 100% !important;
   }
 
-  .step-connector {
+.step-connector {
     display: none !important;
   }
 
-  .step-pip-label {
+.step-pip-label {
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -7409,7 +7341,7 @@ button:hover:not(:disabled) {
     white-space: nowrap;
   }
 
-  .form-step {
+.form-step {
     padding: 0.95rem !important;
     background: #fff !important;
     border: 1px solid rgba(15, 23, 42, 0.07) !important;
@@ -7417,13 +7349,13 @@ button:hover:not(:disabled) {
     box-shadow: 0 16px 38px rgba(15, 23, 42, 0.055) !important;
   }
 
-  .step-title {
+.step-title {
     align-items: center;
     padding-bottom: 0.75rem;
     border-bottom: 1px solid #edf4ef;
   }
 
-  .step-title > svg {
+.step-title > svg {
     display: grid;
     place-items: center;
     width: 42px;
@@ -7435,18 +7367,18 @@ button:hover:not(:disabled) {
     border-radius: 14px;
   }
 
-  .step-title h3 {
+.step-title h3 {
     font-size: 1.1rem !important;
   }
 
-  .field-grid,
+.field-grid,
   .address-confirm-grid,
   .upload-buttons {
     grid-template-columns: 1fr !important;
     gap: 0.75rem !important;
   }
 
-  .field-grid label,
+.field-grid label,
   .full-field,
   .location-correction-form label {
     gap: 0.42rem !important;
@@ -7455,7 +7387,7 @@ button:hover:not(:disabled) {
     font-weight: 950 !important;
   }
 
-  .field-grid input,
+.field-grid input,
   .field-grid select,
   .full-field textarea,
   .location-correction-form input {
@@ -7468,11 +7400,11 @@ button:hover:not(:disabled) {
     font-weight: 750 !important;
   }
 
-  .full-field textarea {
+.full-field textarea {
     min-height: 112px !important;
   }
 
-  .map-frame,
+.map-frame,
   .map-loading {
     width: 100% !important;
     max-width: 100% !important;
@@ -7483,44 +7415,36 @@ button:hover:not(:disabled) {
     overflow: hidden;
   }
 
-  .philippines-map-picker-container {
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    padding: 0 !important;
-    overflow: hidden;
-  }
-
-  .address-confirm-item {
+.address-confirm-item {
     padding: 0.85rem !important;
     border-radius: 16px !important;
   }
 
-  .upload-options,
+.upload-options,
   .form-step div[style*="background: var(--soft)"] {
     margin-bottom: 0 !important;
   }
 
-  .upload-zone {
+.upload-zone {
     min-height: 116px !important;
     border-radius: 18px !important;
     background: #f8fffa !important;
     border: 1.5px dashed rgba(22, 163, 74, 0.42) !important;
   }
 
-  .image-preview-grid,
+.image-preview-grid,
   .review-images-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     gap: 0.65rem !important;
   }
 
-  .image-preview,
+.image-preview,
   .review-image-thumb {
     border-radius: 16px !important;
     overflow: hidden;
   }
 
-  .step-nav {
+.step-nav {
     position: sticky;
     bottom: 78px;
     z-index: 40;
@@ -7536,30 +7460,30 @@ button:hover:not(:disabled) {
     backdrop-filter: blur(14px);
   }
 
-  .step-nav-button {
+.step-nav-button {
     min-height: 50px !important;
     margin-left: 0 !important;
     padding: 0.85rem 1rem !important;
     border-radius: 14px !important;
   }
 
-  .step-nav-button.back {
+.step-nav-button.back {
     width: min(92px, 28vw);
     border: 1px solid #dce9e1 !important;
   }
 
-  .step-nav-button.next,
+.step-nav-button.next,
   .step-nav-button.submit-btn {
     width: 100% !important;
     background: linear-gradient(180deg, #22c55e, #15803d) !important;
     box-shadow: 0 12px 26px rgba(22, 163, 74, 0.24) !important;
   }
 
-  .submit-status {
+.submit-status {
     border-radius: 14px !important;
   }
 
-  .recent-inquiries {
+.recent-inquiries {
     padding: 0.95rem !important;
     background: #fff !important;
     border: 1px solid rgba(15, 23, 42, 0.07) !important;
@@ -7567,22 +7491,22 @@ button:hover:not(:disabled) {
     box-shadow: 0 16px 38px rgba(15, 23, 42, 0.055) !important;
   }
 
-  .recent-inquiries.compact {
+.recent-inquiries.compact {
     margin-top: 0.85rem !important;
   }
 
-  .customer-search {
+.customer-search {
     border-radius: 14px !important;
     background: #fbfefc !important;
     border-color: #dce9e1 !important;
   }
 
-  .recent-list {
+.recent-list {
     display: grid;
     gap: 0.75rem;
   }
 
-  .customer-inquiry-card {
+.customer-inquiry-card {
     position: relative;
     padding: 1rem !important;
     border-radius: 20px !important;
@@ -7593,12 +7517,12 @@ button:hover:not(:disabled) {
     box-shadow: 0 14px 34px rgba(15, 23, 42, 0.055) !important;
   }
 
-  .customer-inquiry-card > strong {
+.customer-inquiry-card > strong {
     font-size: 1.02rem;
     line-height: 1.25;
   }
 
-  .customer-inquiry-card small {
+.customer-inquiry-card small {
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
@@ -7606,37 +7530,37 @@ button:hover:not(:disabled) {
     font-weight: 850 !important;
   }
 
-  .customer-inquiry-card p {
+.customer-inquiry-card p {
     color: #52605a !important;
     line-height: 1.5 !important;
   }
 
-  .customer-inquiry-card em {
+.customer-inquiry-card em {
     color: #64748b !important;
     font-size: 0.78rem !important;
     font-style: normal !important;
     font-weight: 800 !important;
   }
 
-  .customer-inquiry-head {
+.customer-inquiry-head {
     gap: 0.65rem;
   }
 
-  .customer-inquiry-ref {
+.customer-inquiry-ref {
     min-width: 0;
   }
 
-  .customer-inquiry-ref > span {
+.customer-inquiry-ref > span {
     color: #0f7a39 !important;
     font-size: 0.74rem !important;
     font-weight: 950 !important;
   }
 
-  .copy-ref-btn {
+.copy-ref-btn {
     border-radius: 999px !important;
   }
 
-  .customer-status-pill {
+.customer-status-pill {
     min-height: 30px !important;
     padding: 0.45rem 0.7rem !important;
     border-radius: 999px !important;
@@ -7644,7 +7568,7 @@ button:hover:not(:disabled) {
     font-weight: 950 !important;
   }
 
-  .customer-map-toggle-btn {
+.customer-map-toggle-btn {
     min-height: 46px !important;
     margin-top: 0.85rem !important;
     padding: 0.7rem 0.85rem !important;
@@ -7655,36 +7579,35 @@ button:hover:not(:disabled) {
     font-weight: 950 !important;
   }
 
-  .customer-details-collapse {
+.customer-details-collapse {
     margin-top: 0.8rem !important;
   }
 
-  .customer-lifecycle-strip {
+.customer-lifecycle-strip {
     display: flex;
     gap: 0.4rem;
     overflow-x: auto;
     padding-bottom: 0.2rem;
   }
 
-  .customer-lifecycle-strip span {
+.customer-lifecycle-strip span {
     flex: 0 0 auto;
     border-radius: 999px !important;
   }
 
-  .customer-status-timeline {
+.customer-status-timeline {
     padding: 0.85rem !important;
     background: #f8faf9;
     border: 1px solid #edf4ef;
     border-radius: 16px;
   }
 
-  .premium-empty-state {
+.premium-empty-state {
     margin: 0.75rem 0 0 !important;
     padding: 2rem 1rem !important;
     border-radius: 20px !important;
     background: #fbfefc !important;
-  }
-}
+  }}
 
 @media (max-width: 360px) {
   .hero-app-mockup {
@@ -7692,43 +7615,13 @@ button:hover:not(:disabled) {
     min-height: auto;
   }
 
-  .hero-rating-bubble {
-    position: relative;
-    top: auto;
-    left: auto;
-    width: fit-content;
-  }
-
-  .hero-phone-status {
+.hero-phone-status {
     min-height: 250px;
   }
 
-  .hero-phone-route {
-    grid-column: auto;
-  }
-
-  .hero-proof-grid {
+.hero-proof-grid {
     grid-template-columns: 1fr !important;
-  }
-}
-
-@media (max-width: 768px) {
-  .hero-app-mockup .phone-illustration {
-    height: clamp(230px, 66vw, 270px) !important;
-    padding: 0.55rem !important;
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(232, 249, 239, 0.94)),
-      #f0faf4 !important;
-  }
-
-  .hero-app-mockup .phone-illustration img {
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: contain !important;
-    object-position: center center !important;
-    transform: none !important;
-  }
-}
+  }}
 
 @media (max-width: 768px) {
   .hero-section {
@@ -7736,17 +7629,81 @@ button:hover:not(:disabled) {
     background: #f8fcf9 !important;
   }
 
-  .hero-section .hero-copy,
-  .hero-supporting-content {
-    display: none !important;
-  }
-
-  .hero-section .hero-visual {
+/* The real hero — H1, intro copy, the three CTAs, the proof grid, Popular
+     Routes and How-It-Works — used to be display:none here, leaving phone
+     visitors nothing but a mockup of fabricated stats. It leads on mobile now. */
+  .hero-section .hero-copy {
+    display: grid;
     order: 0;
+    gap: 0.85rem;
     width: 100%;
   }
 
-  .hero-app-mockup {
+.hero-section .hero-copy h1 {
+    margin: 0;
+    font-size: clamp(1.75rem, 8.5vw, 2.4rem);
+    line-height: 1.15;
+  }
+
+.hero-section .hero-copy .hero-text {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.55;
+  }
+
+.hero-section .hero-actions {
+    display: grid;
+    gap: 0.6rem;
+    width: 100%;
+  }
+
+.hero-section .hero-actions > button {
+    width: 100%;
+    min-height: 52px;
+    justify-content: space-between;
+  }
+
+.hero-section .hero-proof-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+.hero-section .hero-proof-grid strong {
+    font-size: 0.98rem;
+  }
+
+.hero-section .hero-proof-grid span {
+    font-size: 0.66rem;
+    line-height: 1.3;
+  }
+
+.hero-supporting-content {
+    display: grid;
+    order: 2;
+    gap: 1rem;
+    width: 100%;
+  }
+
+.hero-supporting-content .route-strip {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+.hero-supporting-content .how-it-works {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+
+.hero-section .hero-visual {
+    order: 1;
+    width: 100%;
+  }
+
+.hero-app-mockup {
     display: grid !important;
     gap: 1rem !important;
     width: 100% !important;
@@ -7755,11 +7712,9 @@ button:hover:not(:disabled) {
     padding: 0 !important;
   }
 
-  .mobile-dashboard-hero,
-  .mobile-stat-card,
-  .mobile-express-card,
-  .mobile-track-card,
-  .mobile-quick-access {
+.mobile-dashboard-hero,
+.mobile-track-card,
+.mobile-quick-access {
     width: 100%;
     min-width: 0;
     background: #fff;
@@ -7768,7 +7723,7 @@ button:hover:not(:disabled) {
     box-shadow: 0 18px 42px rgba(15, 23, 42, 0.055);
   }
 
-  .mobile-dashboard-hero {
+.mobile-dashboard-hero {
     position: relative;
     display: grid;
     grid-template-columns: minmax(0, 0.92fr) minmax(138px, 1.08fr);
@@ -7780,7 +7735,7 @@ button:hover:not(:disabled) {
       linear-gradient(180deg, rgba(238, 250, 243, 0.95), rgba(255, 255, 255, 0.96));
   }
 
-  .mobile-dashboard-copy {
+.mobile-dashboard-copy {
     position: relative;
     z-index: 2;
     display: grid;
@@ -7788,20 +7743,20 @@ button:hover:not(:disabled) {
     padding: 1.45rem 0 1.65rem 1.1rem;
   }
 
-  .mobile-dashboard-copy > span {
+.mobile-dashboard-copy > span {
     color: #334155;
     font-size: 0.92rem;
     font-weight: 700;
   }
 
-  .mobile-dashboard-copy > strong {
+.mobile-dashboard-copy > strong {
     color: #14532d;
     font-size: clamp(1.85rem, 8.2vw, 2.6rem);
     line-height: 0.94;
     letter-spacing: 0;
   }
 
-  .mobile-dashboard-copy p {
+.mobile-dashboard-copy p {
     max-width: 12rem;
     margin: 0;
     color: #475569;
@@ -7810,7 +7765,7 @@ button:hover:not(:disabled) {
     line-height: 1.35;
   }
 
-  .mobile-dashboard-copy button,
+.mobile-dashboard-copy button,
   .mobile-track-card button {
     display: inline-grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
@@ -7829,7 +7784,7 @@ button:hover:not(:disabled) {
     white-space: nowrap;
   }
 
-  .mobile-dashboard-hero > img {
+.mobile-dashboard-hero > img {
     position: absolute;
     right: -1.8rem;
     bottom: 0;
@@ -7841,213 +7796,12 @@ button:hover:not(:disabled) {
     filter: saturate(1.04) contrast(1.02);
   }
 
-  .mobile-hero-dots {
-    position: absolute;
-    bottom: 0.88rem;
-    left: 50%;
-    z-index: 3;
-    display: inline-flex;
-    gap: 0.42rem;
-    transform: translateX(-50%);
-  }
-
-  .mobile-hero-dots span {
-    width: 7px;
-    height: 7px;
-    background: #cbd5d1;
-    border-radius: 999px;
-  }
-
-  .mobile-hero-dots .active {
-    width: 20px;
-    background: #16a34a;
-  }
-
-  .mobile-stat-card {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0;
-    padding: 0.9rem 0.55rem;
-  }
-
-  .mobile-stat-card div {
-    display: grid;
-    grid-template-columns: 38px minmax(0, 1fr);
-    gap: 0 0.52rem;
-    align-items: center;
-    min-width: 0;
-    padding: 0.25rem 0.5rem;
-  }
-
-  .mobile-stat-card div + div {
-    border-left: 1px solid #e5ede8;
-  }
-
-  .mobile-stat-card span {
-    grid-row: span 2;
-    display: grid;
-    place-items: center;
-    width: 38px;
-    height: 38px;
-    color: #15803d;
-    background: #edf8f0;
-    border-radius: 50%;
-  }
-
-  .mobile-stat-card strong {
-    color: #0f172a;
-    font-size: 1.18rem;
-    line-height: 1;
-  }
-
-  .mobile-stat-card small {
-    min-width: 0;
-    color: #64748b;
-    font-size: 0.68rem;
-    font-weight: 800;
-    line-height: 1.15;
-  }
-
-  .mobile-express-card {
-    display: grid;
-    gap: 0.78rem;
-    padding: 1rem;
-  }
-
-  .mobile-section-head,
-  .mobile-trip-tabs,
-  .mobile-trip-list button,
-  .mobile-track-card {
+.mobile-track-card {
     display: flex;
     align-items: center;
   }
 
-  .mobile-section-head {
-    justify-content: space-between;
-    gap: 1rem;
-  }
-
-  .mobile-section-head h3 {
-    margin: 0;
-    color: #0f172a;
-    font-size: 1.25rem;
-    line-height: 1;
-  }
-
-  .mobile-section-head button {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.28rem;
-    color: #166534;
-    background: transparent;
-    border: 0;
-    font: inherit;
-    font-size: 0.76rem;
-    font-weight: 950;
-    white-space: nowrap;
-  }
-
-  .mobile-trip-tabs {
-    width: fit-content;
-    max-width: 100%;
-    padding: 0.18rem;
-    background: #f1f5f3;
-    border-radius: 999px;
-  }
-
-  .mobile-trip-tabs span {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.58rem 0.92rem;
-    color: #64748b;
-    border-radius: 999px;
-    font-size: 0.76rem;
-    font-weight: 900;
-  }
-
-  .mobile-trip-tabs span:first-child {
-    color: #fff;
-    background: #15803d;
-  }
-
-  .mobile-trip-list {
-    display: grid;
-    border: 1px solid #e5ede8;
-    border-radius: 16px;
-    overflow: hidden;
-  }
-
-  .mobile-trip-list button {
-    justify-content: stretch;
-    gap: 0.72rem;
-    width: 100%;
-    min-height: 68px;
-    padding: 0.72rem;
-    background: #fff;
-    border: 0;
-    border-bottom: 1px solid #eef3f0;
-    color: inherit;
-    font: inherit;
-    text-align: left;
-  }
-
-  .mobile-trip-list button:last-child {
-    border-bottom: 0;
-  }
-
-  .mobile-trip-pin {
-    display: grid;
-    place-items: center;
-    flex: 0 0 auto;
-    width: 40px;
-    height: 40px;
-    color: #15803d;
-    background: #edf8f0;
-    border-radius: 50%;
-  }
-
-  .mobile-trip-list button > span:nth-child(2) {
-    display: grid;
-    gap: 0.18rem;
-    min-width: 0;
-    flex: 1;
-  }
-
-  .mobile-trip-list strong,
-  .mobile-trip-list small {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .mobile-trip-list strong {
-    color: #0f172a;
-    font-size: 0.88rem;
-    line-height: 1.1;
-  }
-
-  .mobile-trip-list small {
-    color: #64748b;
-    font-size: 0.72rem;
-    font-weight: 750;
-  }
-
-  .mobile-trip-list em {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: max-content;
-    padding: 0.32rem 0.48rem;
-    color: #166534;
-    background: #e8f7ed;
-    border-radius: 999px;
-    font-size: 0.62rem;
-    font-style: normal;
-    font-weight: 900;
-  }
-
-  .mobile-track-card {
+.mobile-track-card {
     justify-content: space-between;
     gap: 1rem;
     padding: 1rem;
@@ -8058,14 +7812,14 @@ button:hover:not(:disabled) {
     border-color: transparent;
   }
 
-  .mobile-track-card strong {
+.mobile-track-card strong {
     display: block;
     margin-bottom: 0.3rem;
     font-size: 1.05rem;
     line-height: 1.1;
   }
 
-  .mobile-track-card p {
+.mobile-track-card p {
     max-width: 12.5rem;
     margin: 0;
     color: rgba(255, 255, 255, 0.82);
@@ -8074,20 +7828,20 @@ button:hover:not(:disabled) {
     line-height: 1.35;
   }
 
-  .mobile-track-card button {
+.mobile-track-card button {
     grid-template-columns: auto minmax(0, 1fr);
     min-width: 118px;
     box-shadow: none;
   }
 
-  .mobile-quick-access {
+.mobile-quick-access {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.55rem;
     padding: 0.68rem;
   }
 
-  .mobile-quick-access button {
+.mobile-quick-access button {
     display: grid;
     place-items: center;
     gap: 0.38rem;
@@ -8104,33 +7858,34 @@ button:hover:not(:disabled) {
     text-align: center;
   }
 
-  .mobile-quick-access svg {
+.mobile-quick-access svg {
     color: #166534;
-  }
-}
+  }}
 
 @media (max-width: 768px) {
   .site-header {
     position: sticky;
     top: 0;
-    z-index: 950;
-    min-height: 76px;
-    padding: 0.72rem 1.1rem 0.66rem !important;
+    z-index: var(--z-header);
+    /* Fluid: 76px fixed against a 54px logo left almost no breathing room, and
+       the sticky header ate a fifth of a short phone viewport. */
+    min-height: clamp(60px, 15vw, 76px);
+    padding: 0.6rem clamp(0.7rem, 3vw, 1.1rem) !important;
     background: rgba(255, 255, 255, 0.96);
     border-bottom: 1px solid rgba(15, 23, 42, 0.06);
     box-shadow: none;
   }
 
-  .brand-logo-img {
-    height: 54px !important;
+.brand-logo-img {
+    height: clamp(38px, 11vw, 54px);
     max-width: 160px;
   }
 
-  .header-call {
+.header-call {
     display: none !important;
   }
 
-  .header-profile img,
+.header-profile img,
   .header-profile > div {
     width: 38px !important;
     height: 38px !important;
@@ -8138,7 +7893,7 @@ button:hover:not(:disabled) {
     box-shadow: 0 7px 14px rgba(15, 23, 42, 0.11);
   }
 
-  .menu-button {
+.menu-button {
     width: 48px !important;
     height: 48px !important;
     margin-left: 0.48rem;
@@ -8149,17 +7904,17 @@ button:hover:not(:disabled) {
     box-shadow: 0 10px 20px rgba(22, 101, 52, 0.2);
   }
 
-  .hero-section {
+.hero-section {
     max-width: 430px;
     margin: 0 auto;
     padding: 0.72rem 0.82rem 5.25rem !important;
   }
 
-  .hero-app-mockup {
+.hero-app-mockup {
     gap: 1.05rem !important;
   }
 
-  .mobile-dashboard-hero {
+.mobile-dashboard-hero {
     min-height: 252px;
     border-radius: 18px;
     background:
@@ -8167,29 +7922,29 @@ button:hover:not(:disabled) {
       linear-gradient(180deg, #f3faf6, #ffffff);
   }
 
-  .mobile-dashboard-copy {
+.mobile-dashboard-copy {
     gap: 0.62rem;
     padding: 1.55rem 0 1.8rem 1.05rem;
   }
 
-  .mobile-dashboard-copy > span {
+.mobile-dashboard-copy > span {
     font-size: 0.88rem;
     font-weight: 600;
   }
 
-  .mobile-dashboard-copy > strong {
+.mobile-dashboard-copy > strong {
     max-width: 8rem;
     font-size: clamp(1.88rem, 8.4vw, 2.45rem);
     color: #14532d;
   }
 
-  .mobile-dashboard-copy p {
+.mobile-dashboard-copy p {
     max-width: 9.2rem;
     font-size: 0.78rem;
     line-height: 1.38;
   }
 
-  .mobile-dashboard-copy button {
+.mobile-dashboard-copy button {
     min-height: 46px;
     width: min(100%, 152px);
     margin-top: 0.18rem;
@@ -8197,7 +7952,7 @@ button:hover:not(:disabled) {
     font-size: 0.78rem;
   }
 
-  .mobile-dashboard-hero > img {
+.mobile-dashboard-hero > img {
     right: -4.8rem;
     bottom: 0;
     width: 82%;
@@ -8206,7 +7961,7 @@ button:hover:not(:disabled) {
     object-position: 39% center;
   }
 
-  .mobile-dashboard-hero::after {
+.mobile-dashboard-hero::after {
     content: '';
     position: absolute;
     inset: 0;
@@ -8215,81 +7970,11 @@ button:hover:not(:disabled) {
     background: linear-gradient(90deg, rgba(255, 255, 255, 0.98) 0 38%, rgba(255, 255, 255, 0.38) 56%, transparent 72%);
   }
 
-  .mobile-dashboard-copy {
+.mobile-dashboard-copy {
     z-index: 2;
   }
 
-  .mobile-stat-card {
-    padding: 0.8rem 0.45rem;
-    border-radius: 18px;
-  }
-
-  .mobile-stat-card div {
-    grid-template-columns: 34px minmax(0, 1fr);
-    gap: 0 0.42rem;
-    padding: 0.2rem 0.4rem;
-  }
-
-  .mobile-stat-card span {
-    width: 34px;
-    height: 34px;
-  }
-
-  .mobile-stat-card strong {
-    font-size: 1.1rem;
-  }
-
-  .mobile-stat-card small {
-    font-size: 0.62rem;
-  }
-
-  .mobile-express-card {
-    padding: 1rem 0.9rem 0.9rem;
-    border-radius: 18px;
-  }
-
-  .mobile-section-head h3 {
-    font-size: 1.25rem;
-  }
-
-  .mobile-trip-tabs span {
-    min-width: 94px;
-    justify-content: center;
-    padding: 0.58rem 0.8rem;
-    font-size: 0.74rem;
-  }
-
-  .mobile-trip-list button {
-    min-height: 64px;
-    padding: 0.68rem;
-  }
-
-  .mobile-trip-pin {
-    width: 38px;
-    height: 38px;
-  }
-
-  .mobile-trip-list strong {
-    font-size: 0.82rem;
-  }
-
-  .mobile-trip-list em {
-    position: relative;
-    padding-left: 1.1rem;
-    font-size: 0.58rem;
-  }
-
-  .mobile-trip-list em::before {
-    content: '';
-    position: absolute;
-    left: 0.42rem;
-    width: 7px;
-    height: 7px;
-    background: #16a34a;
-    border-radius: 50%;
-  }
-
-  .mobile-track-card {
+.mobile-track-card {
     display: grid;
     grid-template-columns: minmax(0, 1.4fr) minmax(116px, 0.8fr);
     gap: 0.75rem;
@@ -8299,20 +7984,20 @@ button:hover:not(:disabled) {
     border-radius: 18px;
   }
 
-  .mobile-track-card div {
+.mobile-track-card div {
     grid-column: 1 / -1;
   }
 
-  .mobile-track-card strong {
+.mobile-track-card strong {
     font-size: 1.02rem;
   }
 
-  .mobile-track-card p {
+.mobile-track-card p {
     max-width: 16rem;
     font-size: 0.75rem;
   }
 
-  .mobile-track-card input {
+.mobile-track-card input {
     width: 100%;
     min-width: 0;
     min-height: 46px;
@@ -8327,18 +8012,18 @@ button:hover:not(:disabled) {
     font-weight: 750;
   }
 
-  .mobile-track-card input::placeholder {
+.mobile-track-card input::placeholder {
     color: #94a3b8;
   }
 
-  .mobile-track-card button {
+.mobile-track-card button {
     min-height: 46px;
     min-width: 0;
     border-radius: 10px;
     font-size: 0.78rem;
   }
 
-  .mobile-quick-access {
+.mobile-quick-access {
     position: relative;
     gap: 0.7rem;
     padding: 2rem 0.48rem 0.48rem;
@@ -8347,7 +8032,7 @@ button:hover:not(:disabled) {
     background: transparent;
   }
 
-  .mobile-quick-access::before {
+.mobile-quick-access::before {
     content: 'Quick Access';
     position: absolute;
     top: 0.25rem;
@@ -8357,13 +8042,13 @@ button:hover:not(:disabled) {
     font-weight: 950;
   }
 
-  .mobile-quick-access button {
+.mobile-quick-access button {
     min-height: 76px;
     border-radius: 14px;
     box-shadow: 0 10px 22px rgba(15, 23, 42, 0.045);
   }
 
-  .mobile-bottom-nav {
+.mobile-bottom-nav {
     left: 0.45rem !important;
     right: 0.45rem !important;
     bottom: 0.45rem !important;
@@ -8377,25 +8062,24 @@ button:hover:not(:disabled) {
     box-shadow: 0 18px 44px rgba(15, 23, 42, 0.13) !important;
   }
 
-  .mobile-nav-item {
+.mobile-nav-item {
     min-height: 48px !important;
     border-radius: 999px !important;
   }
 
-  .mobile-nav-item.active {
+.mobile-nav-item.active {
     color: #16a34a !important;
     background: transparent !important;
   }
 
-  .mobile-nav-item.active .nav-icon {
+.mobile-nav-item.active .nav-icon {
     width: 58px;
     height: 34px;
     padding: 0.38rem 1.05rem;
     color: #fff;
     background: linear-gradient(135deg, #22c55e, #15803d);
     border-radius: 999px;
-  }
-}
+  }}
 
 .customer-dashboard-view {
   display: grid;
@@ -8563,40 +8247,15 @@ button:hover:not(:disabled) {
   text-align: right;
 }
 
-@media (max-width: 768px) {
-  .mobile-trip-tabs button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.35rem;
-    min-width: 94px;
-    padding: 0.58rem 0.8rem;
-    color: #64748b;
-    background: transparent;
-    border: 0;
-    border-radius: 999px;
-    font: inherit;
-    font-size: 0.74rem;
-    font-weight: 900;
-  }
-
-  .mobile-trip-tabs button:first-child {
-    color: #fff;
-    background: #15803d;
-  }
-
-  .mobile-trip-tabs span {
-    display: none;
-  }
-
-  .customer-dashboard-view {
+@media (max-width: 768px) {.customer-dashboard-view {
     padding: 0.85rem 0.82rem 5.25rem;
-  }
-}
+  }}
 
 /* Final desktop client polish */
+/* Below the toast layer, not tied with it. Both were 9999 and the winner
+   depended purely on DOM order. */
 .success-modal-backdrop {
-  z-index: 9999;
+  z-index: var(--z-modal-backdrop);
   padding: 1rem;
 }
 
@@ -8730,7 +8389,7 @@ button:hover:not(:disabled) {
       linear-gradient(180deg, #f8fbf9 0%, #eef6f1 100%);
   }
 
-  .site-header {
+.site-header {
     width: min(100% - 3rem, 1240px);
     min-height: 78px;
     margin: 1rem auto 0;
@@ -8742,13 +8401,13 @@ button:hover:not(:disabled) {
     backdrop-filter: blur(18px);
   }
 
-  .brand-logo-img {
+.brand-logo-img {
     width: auto;
     height: 54px;
     object-fit: contain;
   }
 
-  .desktop-nav {
+.desktop-nav {
     gap: 0.35rem;
     padding: 0.35rem;
     background: #f4f8f5;
@@ -8756,7 +8415,7 @@ button:hover:not(:disabled) {
     border-radius: 999px;
   }
 
-  .desktop-nav button {
+.desktop-nav button {
     min-height: 42px;
     padding: 0.62rem 1rem;
     color: #334155;
@@ -8764,19 +8423,19 @@ button:hover:not(:disabled) {
     font-weight: 900;
   }
 
-  .desktop-nav button:hover,
+.desktop-nav button:hover,
   .desktop-nav button.active {
     color: #fff;
     background: #15803d;
   }
 
-  .header-call,
+.header-call,
   .header-profile-button {
     min-height: 44px;
     border-radius: 999px;
   }
 
-  .hero-section {
+.hero-section {
     width: min(100% - 3rem, 1240px) !important;
     max-width: 1240px !important;
     margin: 0 auto;
@@ -8787,12 +8446,12 @@ button:hover:not(:disabled) {
     align-items: center !important;
   }
 
-  .hero-copy {
+.hero-copy {
     min-width: 0;
     padding: 0 !important;
   }
 
-  .hero-copy .eyebrow {
+.hero-copy .eyebrow {
     width: fit-content;
     padding: 0.55rem 0.75rem;
     color: #166534;
@@ -8803,7 +8462,7 @@ button:hover:not(:disabled) {
     font-weight: 950;
   }
 
-  .hero-copy h1 {
+.hero-copy h1 {
     max-width: 660px;
     margin-top: 1rem;
     color: #07111f;
@@ -8812,11 +8471,11 @@ button:hover:not(:disabled) {
     letter-spacing: 0;
   }
 
-  .hero-copy h1 span {
+.hero-copy h1 span {
     color: #16a34a;
   }
 
-  .hero-text {
+.hero-text {
     max-width: 620px;
     margin-top: 1.25rem;
     color: #475569;
@@ -8825,14 +8484,14 @@ button:hover:not(:disabled) {
     font-weight: 750;
   }
 
-  .hero-actions {
+.hero-actions {
     display: flex !important;
     flex-wrap: wrap;
     gap: 0.8rem;
     margin-top: 1.45rem;
   }
 
-  .hero-actions .primary-action,
+.hero-actions .primary-action,
   .hero-actions .secondary-action,
   .hero-actions .tertiary-action {
     width: auto !important;
@@ -8843,19 +8502,19 @@ button:hover:not(:disabled) {
     box-shadow: none;
   }
 
-  .hero-actions .primary-action {
+.hero-actions .primary-action {
     padding-inline: 1.45rem;
     box-shadow: 0 18px 35px rgba(22, 163, 74, 0.22);
   }
 
-  .hero-proof-grid {
+.hero-proof-grid {
     max-width: 650px;
     margin-top: 1.4rem;
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     gap: 0.7rem;
   }
 
-  .hero-proof-grid .proof-card {
+.hero-proof-grid .proof-card {
     min-height: 92px;
     padding: 1rem;
     background: rgba(255, 255, 255, 0.86);
@@ -8864,15 +8523,15 @@ button:hover:not(:disabled) {
     box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
   }
 
-  .hero-visual {
+.hero-visual {
     min-width: 0;
   }
 
-  .hero-app-mockup {
+.hero-app-mockup {
     display: none !important;
   }
 
-  .hero-section .truck-photo-panel {
+.hero-section .truck-photo-panel {
     display: block !important;
     height: clamp(430px, 39vw, 570px) !important;
     overflow: hidden;
@@ -8882,7 +8541,7 @@ button:hover:not(:disabled) {
     box-shadow: 0 30px 80px rgba(15, 23, 42, 0.16);
   }
 
-  .hero-section .truck-photo-panel img {
+.hero-section .truck-photo-panel img {
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -8890,7 +8549,7 @@ button:hover:not(:disabled) {
     filter: saturate(1.05) contrast(1.02);
   }
 
-  .hero-section .truck-photo-panel::after {
+.hero-section .truck-photo-panel::after {
     content: '';
     position: absolute;
     inset: 0;
@@ -8898,14 +8557,14 @@ button:hover:not(:disabled) {
     background: linear-gradient(90deg, rgba(255, 255, 255, 0.82) 0%, rgba(255, 255, 255, 0.32) 28%, rgba(255, 255, 255, 0) 62%);
   }
 
-  .hero-section .truck-badge,
+.hero-section .truck-badge,
   .hero-section .coverage-card,
   .hero-section .trust-card {
     border-radius: 16px;
     box-shadow: 0 18px 38px rgba(15, 23, 42, 0.14);
   }
 
-  .hero-supporting-content {
+.hero-supporting-content {
     grid-column: 1 / -1;
     display: grid !important;
     grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr);
@@ -8914,18 +8573,18 @@ button:hover:not(:disabled) {
     margin-top: 0.25rem;
   }
 
-  .popular-routes-header {
+.popular-routes-header {
     grid-column: 1 / -1;
     margin: 0 0 0.15rem;
   }
 
-  .route-strip {
+.route-strip {
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.75rem;
   }
 
-  .route-card {
+.route-card {
     min-height: 78px;
     padding: 1rem;
     background: #fff;
@@ -8934,7 +8593,7 @@ button:hover:not(:disabled) {
     box-shadow: 0 10px 26px rgba(15, 23, 42, 0.045);
   }
 
-  .how-it-works {
+.how-it-works {
     grid-column: 2;
     grid-row: 2;
     display: grid !important;
@@ -8946,7 +8605,7 @@ button:hover:not(:disabled) {
     box-shadow: none;
   }
 
-  .how-step {
+.how-step {
     min-height: 150px;
     padding: 1rem;
     background: #fff;
@@ -8955,15 +8614,15 @@ button:hover:not(:disabled) {
     box-shadow: 0 10px 26px rgba(15, 23, 42, 0.045);
   }
 
-  .home-next-actions {
+.home-next-actions {
     display: none !important;
   }
 
-  .inquiry-screen {
+.inquiry-screen {
     background: transparent;
   }
 
-  .inquiry-section {
+.inquiry-section {
     width: min(100% - 3rem, 1180px) !important;
     max-width: 1180px !important;
     margin: 1.4rem auto 3rem !important;
@@ -8978,13 +8637,13 @@ button:hover:not(:disabled) {
     box-shadow: 0 22px 60px rgba(15, 23, 42, 0.08);
   }
 
-  .inquiry-heading,
+.inquiry-heading,
   .backend-required,
   .step-progress {
     grid-column: 1;
   }
 
-  .inquiry-form {
+.inquiry-form {
     grid-column: 2;
     grid-row: 1 / span 6;
     align-self: start;
@@ -8992,12 +8651,12 @@ button:hover:not(:disabled) {
     border-radius: 20px;
   }
 
-  .inquiry-summary,
+.inquiry-summary,
   .compact-inquiry-list {
     grid-column: 1 / -1;
   }
 
-  .customer-dashboard-view,
+.customer-dashboard-view,
   .my-inquiries-screen,
   .tracking-screen {
     width: min(100% - 3rem, 1100px);
@@ -9005,18 +8664,17 @@ button:hover:not(:disabled) {
     margin-inline: auto;
   }
 
-  .customer-dashboard-view {
+.customer-dashboard-view {
     grid-template-columns: minmax(320px, 0.38fr) minmax(0, 0.62fr);
     align-items: start;
     padding: 2rem 0 3rem;
   }
 
-  .customer-profile-card,
+.customer-profile-card,
   .customer-mini-panel {
     border-radius: 20px;
     box-shadow: 0 16px 44px rgba(15, 23, 42, 0.07);
-  }
-}
+  }}
 
 @media (max-width: 520px) {
   .success-modal-card {
@@ -9024,21 +8682,20 @@ button:hover:not(:disabled) {
     border-radius: 18px;
   }
 
-  .success-modal-actions {
+.success-modal-actions {
     grid-template-columns: 1fr;
   }
 
-  .success-reference-card {
+.success-reference-card {
     grid-template-columns: 1fr;
   }
 
-  .success-reference-card button {
+.success-reference-card button {
     grid-row: auto;
     grid-column: auto;
     width: 100%;
     justify-content: center;
-  }
-}
+  }}
 
 /* Driver GPS tracking and live route polish */
 @keyframes pulseGps {
@@ -9204,10 +8861,130 @@ button:hover:not(:disabled) {
   margin: 0 1.35rem 1rem;
   padding: 0.85rem;
   color: #991b1b;
-  background: #fef2f2;
+  background: var(--red-soft);
   border: 1px solid #fecaca;
   border-radius: 14px;
+  font-size: 0.88rem;
   font-weight: 800;
+  line-height: 1.45;
+}
+
+.driver-alert svg {
+  flex-shrink: 0;
+}
+
+/* Amber = recoverable (no signal, screen dimmed, weak accuracy).
+   Red default = needs the driver to act. */
+.driver-alert.warn {
+  color: var(--amber-ink);
+  background: var(--amber-soft);
+  border-color: var(--amber);
+}
+
+.driver-alert.danger {
+  color: #7f1d1d;
+  background: #fee2e2;
+  border-color: #f87171;
+}
+
+/* Sticky "do not leave this page" banner. Was fully inline-styled and animated
+   with a pulseBorder keyframe that did not exist. */
+.driver-live-banner {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin: 0 1.35rem 0.75rem;
+  padding: 0.7rem 0.9rem;
+  color: #fff;
+  background: var(--red);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);
+  font-size: 0.86rem;
+  font-weight: 900;
+  line-height: 1.35;
+  animation: pulseBorder 2s ease-in-out infinite;
+}
+
+.driver-live-banner-icon {
+  flex-shrink: 0;
+  animation: pulseGps 1.2s infinite;
+}
+
+@keyframes pulseBorder {
+  0%, 100% { box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35); }
+  50% { box-shadow: 0 4px 22px rgba(220, 38, 38, 0.7); }
+}
+
+/* Honest fix-age readout: live / stale / offline, refreshed on a timer. */
+.driver-fix-status {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0 1.35rem 1rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid #e5eee8;
+  border-radius: 14px;
+  font-size: 0.88rem;
+  font-weight: 900;
+}
+
+.driver-fix-dot {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  background: currentColor;
+  border-radius: 50%;
+}
+
+.driver-fix-status.is-live {
+  color: #15803d;
+  background: var(--soft-green);
+  border-color: #bde8ca;
+}
+
+.driver-fix-status.is-live .driver-fix-dot {
+  animation: pulseGps 1.5s infinite;
+}
+
+.driver-fix-status.is-stale {
+  color: var(--amber-ink);
+  background: var(--amber-soft);
+  border-color: var(--amber);
+}
+
+.driver-fix-status.is-waiting,
+.driver-fix-status.is-idle {
+  color: #64748b;
+  background: #f8fafc;
+}
+
+.driver-fix-pending {
+  margin-left: auto;
+  padding: 0.2rem 0.5rem;
+  color: #475569;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  font-size: 0.72rem;
+}
+
+.driver-tips {
+  margin: 0.75rem 1.35rem 0;
+  padding: 0.85rem 1rem;
+  color: var(--ink);
+  background: rgba(22, 163, 74, 0.07);
+  border: 1px solid rgba(22, 163, 74, 0.2);
+  border-radius: 12px;
+  font-size: 0.84rem;
+  line-height: 1.6;
+}
+
+.driver-tips ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
 }
 
 .driver-track-button {
@@ -9309,6 +9086,28 @@ button:hover:not(:disabled) {
   border-color: #bde8ca;
 }
 
+/* A fix that has aged out. Distinct from .live so a dead GPS cannot read as
+   healthy — previously the chip only had a live and a neutral state. */
+.gps-status-chip.stale {
+  color: #92400e;
+  background: #fef3c7;
+  border-color: #f6d488;
+}
+
+.gps-status-chip.reconnecting {
+  color: #9a3412;
+  background: #fff1e7;
+  border-color: #fdba74;
+}
+
+.route-live-map-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
 .route-gps-meta {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -9332,12 +9131,48 @@ button:hover:not(:disabled) {
   color: #0f172a;
 }
 
+/* Height comes from an inline clamp() on the shell so the map scales with the
+   viewport instead of being pinned to 400/280/220px per call site. */
+.route-live-map-shell {
+  position: relative;
+  width: 100%;
+}
+
 .route-live-map-frame {
   width: 100%;
+  height: 100%;
   overflow: hidden;
   background: var(--soft);
   border: 1px solid #dce9e1;
   border-radius: 14px;
+}
+
+.route-follow-btn {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: var(--z-map-control);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding: 0.55rem 1rem;
+  color: #111827;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.route-follow-btn.is-following {
+  color: #ffffff;
+  background: var(--green);
+  border-color: transparent;
 }
 
 @media (min-width: 1024px) {
@@ -9351,28 +9186,944 @@ button:hover:not(:disabled) {
     white-space: nowrap;
   }
 
-  .hero-actions .primary-action {
+.hero-actions .primary-action {
     min-width: 218px;
-  }
-}
+  }}
 
 @media (max-width: 520px) {
   .driver-tracking-page {
     padding: 0;
   }
 
-  .driver-tracking-card,
+.driver-tracking-card,
   .driver-state-card {
     min-height: 100vh;
     border-radius: 0;
   }
 
-  .driver-gps-grid,
-  .route-gps-meta {
+.route-gps-meta {
     grid-template-columns: 1fr;
   }
 
-  .route-live-map-head {
+/* Read at arm's length, in daylight, while parked. Two columns keeps all four
+     readouts on screen at once instead of pushing Speed below the fold. */
+  .driver-gps-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+.driver-gps-grid div {
+    padding: 0.7rem;
+  }
+
+.driver-gps-grid strong {
+    font-size: 1.15rem;
+  }
+
+.driver-live-banner,
+  .driver-fix-status,
+  .driver-alert,
+  .driver-tips {
+    margin-inline: 0.9rem;
+  }
+
+.driver-track-button {
+    width: calc(100% - 1.8rem);
+    min-height: 62px;
+    margin-inline: 0.9rem;
+  }
+
+.route-live-map-head {
     display: grid;
+  }}
+
+/* ---------------------------------------------------------------------------
+   Keyboard focus ring
+   ---------------------------------------------------------------------------
+   This stylesheet had 7 :focus rules across 9,000+ lines against 4 `outline: 0`
+   declarations, so tabbing through the header, both navs, the admin table,
+   pagination and every modal action row showed nothing at all.
+
+   Written as explicit longhands with a literal colour (not the shorthand and not
+   var(), both of which lost the colour and offset in this cascade), with real
+   selector specificity, and placed last so it is not overridden.
+--------------------------------------------------------------------------- */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+label:focus-visible,
+[tabindex]:focus-visible {
+  outline-width: 3px;
+  outline-style: solid;
+  outline-color: #16a34a;
+  outline-offset: 2px;
+}
+
+/* Inputs sit inside tinted panels where green-on-green reads poorly. */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline-offset: 1px;
+}
+
+/* On the red "do not leave" banner and the danger buttons, green would vanish. */
+.driver-track-button.danger:focus-visible,
+.admin-confirm-actions .danger:focus-visible {
+  outline-color: #0f172a;
+}
+
+/* ---------------------------------------------------------------------------
+   Fleet showcase
+   ---------------------------------------------------------------------------
+   Moved out of TruckShowcase.jsx inline styles, which no breakpoint could reach.
+   The card image was a hard height:200px with negative margins that clipped at
+   narrow widths; it is now a fluid aspect-ratio box.
+--------------------------------------------------------------------------- */
+.fleet-card-image {
+  margin: -1.25rem -1.25rem 1rem;
+  aspect-ratio: 16 / 10;
+  min-height: 148px;
+  max-height: 240px;
+  overflow: hidden;
+  background: var(--soft);
+  border-radius: 16px 16px 0 0;
+}
+
+.fleet-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fleet-inquire-button {
+  align-self: flex-start;
+  min-height: 48px;
+  padding: 0.85rem 1.5rem;
+  color: #fff;
+  background: var(--ink);
+  border: 0;
+  border-radius: 12px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.fleet-lanes {
+  margin-top: clamp(2rem, 6vw, 4rem);
+  padding: clamp(1.1rem, 4vw, 2rem);
+  background: var(--soft-green);
+  border-radius: 12px;
+}
+
+.fleet-lanes-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: clamp(0.9rem, 3vw, 1.5rem);
+  color: var(--ink);
+}
+
+.fleet-lanes-head svg {
+  flex-shrink: 0;
+  color: var(--green);
+}
+
+.fleet-lanes-head h3 {
+  margin: 0;
+}
+
+/* Scoped as `.lane-list .lane-chip` (0,2,0) so it beats the generic
+   `.route-strip span, .lane-list span` pill rule (0,1,1) near the top of this
+   file. These values reproduce the previous inline styles exactly — the lane
+   chips looked white and square-ish before, and this keeps them that way rather
+   than silently restyling them into the green pills that rule would apply. */
+.lane-list .lane-chip {
+  padding: 0.5rem 1rem;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid rgba(22, 163, 74, 0.2);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+/* ---------------------------------------------------------------------------
+   Inline field validation
+   ---------------------------------------------------------------------------
+   The app previously had no field-level error messaging anywhere: all feedback
+   was a single submitStatus string, and the wizard's Continue button was simply
+   disabled with no stated reason on 3 of its 4 steps.
+--------------------------------------------------------------------------- */
+.field-error {
+  display: block;
+  margin-top: 0.3rem;
+  color: #b91c1c;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+input[aria-invalid='true'],
+select[aria-invalid='true'],
+textarea[aria-invalid='true'] {
+  border-color: #f87171 !important;
+  background: var(--red-soft);
+}
+
+.step-error-summary {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  color: #7f1d1d;
+  background: var(--red-soft);
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  font-size: 0.85rem;
+}
+
+.step-error-summary svg {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.step-error-summary ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  font-weight: 600;
+}
+
+.step-error-summary li + li {
+  margin-top: 0.2rem;
+}
+
+/* Enabled but not yet satisfiable — reads as secondary until the step is valid. */
+.step-nav-button.next.is-blocked {
+  background: #94a3b8;
+  box-shadow: none;
+}
+
+/* Admin table semantics. */
+.admin-inquiries-table caption {
+  padding: 0 0 0.5rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-align: left;
+}
+
+/* Final CTA clipping fix: keep text and arrow in separate stable columns. */
+.hero-section .hero-actions > button {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  justify-content: normal !important;
+  column-gap: 0.85rem !important;
+  overflow: visible !important;
+}
+
+.hero-section .hero-actions .btn-left {
+  display: inline-flex !important;
+  min-width: 0 !important;
+  align-items: center !important;
+  gap: 0.55rem !important;
+  white-space: nowrap !important;
+}
+
+.hero-section .hero-actions > button > svg {
+  display: block !important;
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  flex: 0 0 auto !important;
+  justify-self: end !important;
+  margin: 0 !important;
+  transform: none !important;
+}
+
+@media (min-width: 1024px) {
+  .hero-section .hero-actions .primary-action {
+    min-width: 238px !important;
+  }
+
+  .hero-section .hero-actions .secondary-action,
+  .hero-section .hero-actions .tertiary-action {
+    min-width: 220px !important;
+  }
+}
+
+/* Final signed-in account card polish. */
+.auth-panel.signed-in-panel {
+  width: min(100%, 520px);
+  padding: 0.9rem 1rem;
+  margin: 0 auto 1.25rem;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.auth-panel.signed-in-panel .auth-user-card {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: center;
+  padding: 0.95rem;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(22, 163, 74, 0.09), rgba(255, 255, 255, 0) 44%),
+    #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.09);
+  border-radius: 18px;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+}
+
+.auth-avatar {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  overflow: hidden;
+  color: #ffffff;
+  background: linear-gradient(145deg, #16a34a, #0f6f32);
+  border: 3px solid #ecfdf3;
+  border-radius: 16px;
+  box-shadow: 0 10px 22px rgba(22, 163, 74, 0.24);
+}
+
+.auth-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.auth-avatar span {
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.auth-user-main {
+  display: grid;
+  min-width: 0;
+  gap: 0.28rem;
+}
+
+.auth-user-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.auth-verified-badge {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 0.32rem;
+  padding: 0.22rem 0.5rem;
+  color: #0f6f32 !important;
+  background: #eaf8ef;
+  border: 1px solid rgba(22, 163, 74, 0.18);
+  border-radius: 999px;
+  font-size: 0.67rem !important;
+  font-weight: 900 !important;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.auth-verified-badge svg {
+  color: #16a34a !important;
+}
+
+.auth-panel.signed-in-panel .auth-user-card strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #071328;
+  font-size: 1rem;
+  font-weight: 950;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: normal;
+}
+
+.auth-panel.signed-in-panel .auth-user-card p {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.38rem;
+  margin: 0;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.auth-panel.signed-in-panel .auth-user-card p svg {
+  flex: 0 0 auto;
+  color: #16a34a;
+}
+
+.auth-panel.signed-in-panel .auth-user-card p span {
+  min-width: 0;
+  overflow: hidden;
+  color: #64748b;
+  font-size: inherit;
+  font-weight: inherit;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.auth-panel.signed-in-panel .auth-logout-button {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  min-height: 44px;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  color: #991b1b;
+  background: #fff7f7;
+  border: 1px solid #fecaca;
+  border-radius: 14px;
+  font-size: 0.86rem;
+  font-weight: 900;
+  box-shadow: none;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.auth-panel.signed-in-panel .auth-logout-button svg {
+  color: currentColor;
+}
+
+.auth-panel.signed-in-panel .auth-logout-button:hover:not(:disabled) {
+  color: #ffffff;
+  background: #dc2626;
+  border-color: #dc2626;
+  transform: translateY(-1px);
+}
+
+.auth-panel.signed-in-panel .auth-logout-button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.auth-panel.signed-in-panel .auth-status {
+  margin-top: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  color: #475569;
+  background: #f8fafc;
+  border-color: rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  font-size: 0.82rem;
+}
+
+@media (min-width: 640px) {
+  .auth-panel.signed-in-panel .auth-user-card {
+    grid-template-columns: 50px minmax(0, 1fr) auto;
+    padding: 1rem;
+  }
+
+  .auth-avatar {
+    width: 50px;
+    height: 50px;
+  }
+
+  .auth-panel.signed-in-panel .auth-logout-button {
+    grid-column: auto;
+    width: auto;
+    min-width: 116px;
+    margin-top: 0;
+    padding: 0 1rem;
+  }
+}
+
+/* Final admin isolation: /admin must not inherit public landing chrome spacing. */
+.app-shell.admin-app-shell {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
+  padding: 0;
+  overflow: hidden;
+  background: #eef5f0;
+}
+
+.admin-app-shell > main {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.admin-app-shell .admin-dashboard.admin-console {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top right, rgba(22, 163, 74, 0.1), transparent 34rem),
+    #f5f8f6;
+}
+
+.admin-app-shell .admin-console-shell {
+  height: 100vh !important;
+  height: 100dvh !important;
+  min-height: 0 !important;
+  grid-template-columns: 260px minmax(0, 1fr) !important;
+  overflow: hidden;
+}
+
+.admin-app-shell .admin-sidebar {
+  position: relative !important;
+  top: auto !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  min-height: 0;
+  overflow: hidden;
+  padding: 1.35rem 1.15rem;
+}
+
+.admin-app-shell .admin-main {
+  height: 100vh;
+  height: 100dvh;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1.35rem 1.55rem 1.55rem;
+  scrollbar-gutter: stable;
+}
+
+.admin-app-shell .admin-console-header {
+  align-items: center;
+  padding: 0.95rem 1rem;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.06);
+  backdrop-filter: blur(12px);
+}
+
+.admin-app-shell .admin-console-header h1 {
+  font-size: clamp(1.9rem, 2.45vw, 2.65rem);
+}
+
+.admin-app-shell .admin-console-header p {
+  margin-top: 0.35rem;
+}
+
+.admin-app-shell .admin-console-header .eyebrow {
+  margin: 0 0 0.3rem;
+}
+
+.admin-app-shell .admin-command-bar {
+  display: flex !important;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.admin-app-shell .admin-table-panel {
+  overflow: hidden;
+}
+
+.admin-app-shell .admin-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.admin-app-shell .admin-inquiries-table {
+  min-width: 1180px;
+}
+
+.admin-app-shell .admin-row-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.35rem;
+}
+
+.admin-app-shell .admin-row-actions button {
+  white-space: nowrap;
+}
+
+@media (max-width: 1024px) {
+  .app-shell.admin-app-shell,
+  .admin-app-shell > main,
+  .admin-app-shell .admin-dashboard.admin-console {
+    height: auto;
+    min-height: 100vh;
+    overflow: auto;
+  }
+
+  .admin-app-shell .admin-dashboard.admin-console {
+    min-height: 100vh;
+    padding: 1rem !important;
+  }
+}
+
+/* Final admin detail simplification: flatter, lighter, no accidental 2-column form. */
+.admin-app-shell .admin-slide-panel {
+  max-width: 660px;
+  background: #f8faf9;
+}
+
+.admin-app-shell .admin-slide-header {
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid #e2e8e4;
+  box-shadow: none;
+}
+
+.admin-app-shell .admin-slide-content {
+  gap: 0.7rem;
+  padding: 0.85rem;
+}
+
+.admin-app-shell .admin-detail-section {
+  gap: 0.7rem;
+  padding: 0.85rem;
+  background: #ffffff;
+  border: 1px solid #e2e8e4;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.admin-app-shell .admin-detail-title {
+  gap: 0.45rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid #edf2ef;
+}
+
+.admin-app-shell .admin-detail-title h4 {
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.admin-app-shell .admin-detail-grid p,
+.admin-app-shell .admin-route-pair p {
+  padding: 0.6rem;
+  background: #fbfcfb;
+  border-radius: 4px;
+}
+
+.admin-app-shell .admin-update-form {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  align-items: stretch !important;
+  padding: 0.85rem !important;
+}
+
+.admin-app-shell .admin-form-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0.65rem;
+}
+
+.admin-app-shell .admin-notes-field {
+  grid-column: 1 / -1 !important;
+}
+
+.admin-app-shell .admin-form-grid input,
+.admin-app-shell .admin-form-grid select,
+.admin-app-shell .admin-form-grid textarea,
+.admin-app-shell .admin-copy-row input {
+  min-height: 40px;
+  padding: 0.58rem 0.65rem;
+  background: #ffffff;
+  border-color: #d8e1dc;
+  border-radius: 5px;
+  font-size: 0.86rem;
+}
+
+.admin-app-shell .admin-form-grid textarea {
+  min-height: 82px;
+}
+
+.admin-app-shell .admin-location-button {
+  min-height: 58px !important;
+  padding: 0.65rem !important;
+  background: #fbfcfb !important;
+  border-color: #d8e1dc !important;
+  border-radius: 5px !important;
+  box-shadow: none !important;
+}
+
+.admin-app-shell .admin-location-button.active {
+  background: #f1fbf5 !important;
+  border-color: #86efac !important;
+}
+
+.admin-app-shell .admin-location-button > span {
+  width: 36px;
+  height: 36px;
+  border-radius: 5px;
+}
+
+.admin-app-shell .admin-sticky-save {
+  bottom: -0.85rem;
+  margin: 0 -0.85rem -0.85rem;
+  padding: 0.7rem 0.85rem;
+}
+
+.admin-app-shell .admin-sticky-save button,
+.admin-app-shell .admin-generate-button,
+.admin-app-shell .admin-copy-row button,
+.admin-app-shell .admin-detail-actions a,
+.admin-app-shell .admin-detail-actions button {
+  min-height: 40px;
+  border-radius: 5px;
+  box-shadow: none;
+}
+
+.admin-app-shell .admin-gps-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  padding: 0.7rem;
+  background: #fbfcfb;
+  border: 1px solid #d8e1dc;
+  border-left: 4px solid #94a3b8;
+  border-radius: 5px;
+}
+
+.admin-app-shell .admin-gps-summary div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.admin-app-shell .admin-gps-summary span {
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.admin-app-shell .admin-gps-summary strong {
+  color: #0f172a;
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.admin-app-shell .admin-gps-summary p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.admin-app-shell .admin-gps-summary.live {
+  border-left-color: #16a34a;
+  background: #f3fbf6;
+}
+
+.admin-app-shell .admin-gps-summary.waiting {
+  border-left-color: #2563eb;
+}
+
+.admin-app-shell .admin-gps-summary.stale {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.admin-app-shell .admin-gps-summary.offline {
+  border-left-color: #94a3b8;
+}
+
+/* Final client-side simplification: mobile-first, functional, light UI. */
+.inquiry-auth-slot {
+  margin-top: 0.75rem;
+}
+
+.inquiry-review-panel {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  background: #f8faf9;
+  border: 1px solid #e2e8e4;
+  border-radius: 8px;
+}
+
+.inquiry-review-panel div {
+  display: grid;
+  gap: 0.22rem;
+  min-width: 0;
+}
+
+.inquiry-review-panel h4 {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.inquiry-review-panel p,
+.inquiry-review-panel em,
+.inquiry-review-panel small {
+  margin: 0;
+  color: #111827;
+  font-size: 0.9rem;
+  font-weight: 750;
+  line-height: 1.42;
+  overflow-wrap: anywhere;
+}
+
+.inquiry-review-panel em {
+  color: #475569;
+  font-style: normal;
+}
+
+.inquiry-review-panel small {
+  color: #15803d;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.customer-card-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.customer-card-meta div {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+  padding: 0.6rem;
+  background: #f8faf9;
+  border: 1px solid #e2e8e4;
+  border-radius: 7px;
+}
+
+.customer-card-meta span {
+  color: #64748b;
+  font-size: 0.66rem;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.customer-card-meta strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 0.82rem !important;
+  font-weight: 900 !important;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.customer-map-toggle-btn {
+  display: flex !important;
+  width: 100% !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 0.75rem !important;
+}
+
+.customer-map-toggle-btn svg {
+  flex: 0 0 auto;
+  transition: transform 0.18s ease;
+}
+
+.customer-map-toggle-btn svg.is-open {
+  transform: rotate(180deg);
+}
+
+.customer-details-collapse {
+  display: grid !important;
+  gap: 0.85rem !important;
+  margin-top: 0.85rem !important;
+}
+
+@media (max-width: 768px) {
+  .inquiry-heading,
+  .form-step,
+  .recent-inquiries,
+  .customer-inquiry-card,
+  .premium-empty-state {
+    border-radius: 10px !important;
+    box-shadow: none !important;
+  }
+
+  .step-progress {
+    border-radius: 9px !important;
+    box-shadow: none !important;
+  }
+
+  .step-title > svg {
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 8px !important;
+  }
+
+  .field-grid input,
+  .field-grid select,
+  .full-field textarea,
+  .location-correction-form input {
+    border-radius: 7px !important;
+  }
+
+  .map-frame,
+  .map-loading,
+  .route-live-map-frame {
+    border-radius: 9px !important;
+  }
+
+  .step-nav {
+    border-radius: 10px !important;
+  }
+
+  .step-nav-button,
+  .upload-zone,
+  .address-confirm-item,
+  .customer-map-toggle-btn,
+  .customer-status-timeline,
+  .customer-quote-box {
+    border-radius: 8px !important;
+  }
+
+  .customer-card-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .customer-card-meta div {
+    grid-template-columns: 72px minmax(0, 1fr);
+    align-items: center;
+    padding: 0.52rem 0.6rem;
+    border-radius: 6px;
+  }
+
+  .customer-card-meta span {
+    line-height: 1.2;
+  }
+
+  .route-live-map {
+    margin: 0.8rem 0 0;
+  }
+
+  .route-live-map-head {
+    gap: 0.45rem;
+  }
+
+  .route-gps-meta {
+    grid-template-columns: 1fr !important;
+  }
+
+  .mobile-bottom-nav {
+    border-radius: 14px 14px 0 0 !important;
   }
 }

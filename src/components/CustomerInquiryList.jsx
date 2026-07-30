@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Check, ClipboardList, ClipboardCopy, MapPin, RefreshCw, Route, Save, Search, X } from 'lucide-react';
+import { Check, ChevronDown, ClipboardList, ClipboardCopy, MapPin, RefreshCw, Route, Save, Search, X } from 'lucide-react';
 import { INQUIRY_STATUS_HELP, INQUIRY_STATUS_LABELS } from '../data/inquiryStatus.js';
 import { getInquiries, updateInquiryLocations } from '../lib/inquiries/api.js';
 import { calculateDistanceKm } from '../lib/inquiries/distance.js';
@@ -15,7 +15,13 @@ const PhilippinesMapPicker = dynamic(() => import('./PhilippinesMapPicker.jsx'),
 
 const RouteDisplayMap = dynamic(() => import('./RouteDisplayMap.jsx'), {
   ssr: false,
-  loading: () => <div className="map-loading" style={{ height: '100px' }}>Loading Route Map...</div>,
+  // Same clamp as the loaded map, so there is no layout shift when it swaps in.
+  // This was 100px against a ~280px map.
+  loading: () => (
+    <div className="map-loading" style={{ height: 'clamp(220px, 42vh, 420px)' }}>
+      Loading Route Map...
+    </div>
+  ),
 });
 
 const CORRECTABLE_STATUSES = ['new', 'reviewing'];
@@ -30,6 +36,40 @@ function formatInquiryDate(value) {
   }
 
   return new Date(value).toLocaleString();
+}
+
+function formatShortDate(value) {
+  if (!value) {
+    return 'Not set';
+  }
+
+  return new Date(value).toLocaleDateString('en-PH', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function formatQuote(value) {
+  const amount = Number(value);
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return 'Waiting';
+  }
+
+  return new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function getTrackingLabel(inquiry) {
+  if (!inquiry.driver_tracking_active) {
+    return inquiry.driver_lat && inquiry.driver_lng ? 'Last location saved' : 'Not live yet';
+  }
+
+  return inquiry.driver_lat && inquiry.driver_lng ? 'Live GPS' : 'Waiting for driver';
 }
 
 function getTimeline(inquiry) {
@@ -49,15 +89,20 @@ function getTimeline(inquiry) {
   return [...history].sort((first, second) => new Date(second.created_at) - new Date(first.created_at));
 }
 
-function createPointFromInquiry(inquiry, type) {
-  const lat = Number(inquiry[`${type}_lat`]);
-  const lng = Number(inquiry[`${type}_lng`]);
+/** { lat, lng }, or null when either coordinate is missing or unparseable. */
+function createPoint(latValue, lngValue) {
+  const lat = Number(latValue);
+  const lng = Number(lngValue);
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return null;
   }
 
   return { lat, lng };
+}
+
+function createPointFromInquiry(inquiry, type) {
+  return createPoint(inquiry[`${type}_lat`], inquiry[`${type}_lng`]);
 }
 
 function LocationCorrectionForm({ inquiry, session, onCancel, onSaved }) {
@@ -154,19 +199,35 @@ function CustomerInquiryCard({ inquiry, session, showTimeline = false, onSaved }
   const latestHistory = timeline[0];
   const visibleSteps = ['new', 'reviewing', 'quoted', 'scheduled', 'picked_up', 'in_transit', 'delivered'];
   
-  const pickupPoint = { lat: Number(inquiry.pickup_lat), lng: Number(inquiry.pickup_lng) };
-  const deliveryPoint = { lat: Number(inquiry.delivery_lat), lng: Number(inquiry.delivery_lng) };
+  // Memoized on the coordinates themselves, and null when either is missing.
+  // Fresh object literals here re-ran RouteDisplayMap's route effect on every
+  // render — re-fetching OSRM and resetting the camera on each 30s poll. Passing
+  // null (rather than { lat: NaN }) also stops it rendering an empty map box.
+  const pickupPoint = useMemo(
+    () => createPoint(inquiry.pickup_lat, inquiry.pickup_lng),
+    [inquiry.pickup_lat, inquiry.pickup_lng],
+  );
+  const deliveryPoint = useMemo(
+    () => createPoint(inquiry.delivery_lat, inquiry.delivery_lng),
+    [inquiry.delivery_lat, inquiry.delivery_lng],
+  );
   const currentStepIndex = visibleSteps.includes(inquiryStatus) ? visibleSteps.indexOf(inquiryStatus) : 0;
   const [isCorrectingLocation, setIsCorrectingLocation] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [copied, setCopied] = useState(false);
   const canCorrectLocation = showTimeline && CORRECTABLE_STATUSES.includes(inquiryStatus);
 
+  const copiedTimerRef = useRef(null);
+
+  // The reset timer used to outlive the card.
+  useEffect(() => () => window.clearTimeout(copiedTimerRef.current), []);
+
   const copyReference = async () => {
     try {
       await navigator.clipboard.writeText(inquiry.reference);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      window.clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = window.setTimeout(() => setCopied(false), 2000);
     } catch {
       // fallback — select text
     }
@@ -197,6 +258,20 @@ function CustomerInquiryCard({ inquiry, session, showTimeline = false, onSaved }
         <Route size={14} />
         {distance?.toLocaleString() || 'No'} km • {cargo}
       </small>
+      <div className="customer-card-meta" aria-label="Inquiry quick details">
+        <div>
+          <span>Quote</span>
+          <strong>{formatQuote(inquiry.quoted_price)}</strong>
+        </div>
+        <div>
+          <span>Pickup</span>
+          <strong>{formatShortDate(inquiry.target_pickup_date)}</strong>
+        </div>
+        <div>
+          <span>GPS</span>
+          <strong>{getTrackingLabel(inquiry)}</strong>
+        </div>
+      </div>
       <p>{INQUIRY_STATUS_HELP[inquiryStatus] || 'AHV is reviewing your request.'}</p>
       <em>Latest update: {formatInquiryDate(latestHistory?.created_at || inquiry.updated_at || inquiry.created_at)}</em>
 
@@ -205,27 +280,14 @@ function CustomerInquiryCard({ inquiry, session, showTimeline = false, onSaved }
           type="button" 
           className="customer-map-toggle-btn"
           onClick={() => setShowDetails(!showDetails)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            width: '100%',
-            padding: '0.75rem',
-            marginTop: '1rem',
-            background: 'var(--soft)',
-            border: '1px solid var(--line)',
-            borderRadius: '8px',
-            color: 'var(--ink)',
-            fontWeight: '600',
-            cursor: 'pointer',
-          }}
+          aria-expanded={showDetails}
         >
           <span>{showDetails ? 'Hide Details' : 'View Full Details & Map'}</span>
-          <span style={{ transform: showDetails ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</span>
+          <ChevronDown size={17} className={showDetails ? 'is-open' : ''} />
         </button>
 
         {showDetails && (
-          <div className="customer-details-collapse" style={{ marginTop: '1rem', display: 'grid', gap: '1rem' }}>
+          <div className="customer-details-collapse">
             {showTimeline && (
               <div className="customer-location-note">
                 <MapPin size={16} />
@@ -287,9 +349,9 @@ function CustomerInquiryCard({ inquiry, session, showTimeline = false, onSaved }
               driverSpeedKph={inquiry.driver_speed_kph}
               driverHeading={inquiry.driver_heading}
               driverUpdatedAt={inquiry.driver_updated_at}
+              driverFixAt={inquiry.driver_fix_at}
               driverTrackingActive={inquiry.driver_tracking_active}
               inquiryReference={inquiry.reference}
-              height="280px"
             />
 
             {showTimeline && Number(inquiry.quoted_price) > 0 && (
@@ -326,6 +388,7 @@ function CustomerInquiryList({
   const [status, setStatus] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const supabase = getSupabaseBrowserClient();
+  const loadRequestIdRef = useRef(0);
 
   const loadInquiries = useCallback(async ({ quiet = false } = {}) => {
     if (!session?.access_token) {
@@ -338,17 +401,23 @@ function CustomerInquiryList({
       setStatus('Loading your inquiries...');
     }
 
+    // Called from three effects plus a 30s interval. Ignore any response a newer
+    // request has superseded, so an older payload cannot land last.
+    const requestId = ++loadRequestIdRef.current;
+
     try {
       const data = await getInquiries(session.access_token, {
         limit,
         reference,
       });
+      if (requestId !== loadRequestIdRef.current) return;
       setInquiries(Array.isArray(data.inquiries) ? data.inquiries : []);
       if (!quiet) setStatus('');
     } catch (loadError) {
+      if (requestId !== loadRequestIdRef.current) return;
       setStatus(loadError.message);
     } finally {
-      if (!quiet) setIsLoading(false);
+      if (!quiet && requestId === loadRequestIdRef.current) setIsLoading(false);
     }
   }, [limit, reference, session?.access_token]);
 
@@ -379,7 +448,10 @@ function CustomerInquiryList({
       window.clearTimeout(refreshTimer);
       supabase.removeChannel(channel);
     };
-  }, [loadInquiries, reference, session, supabase]);
+    // session?.user?.id, not `session`: the session object gets a new identity on
+    // every hourly TOKEN_REFRESHED, which tore down and re-subscribed the
+    // websocket for no reason.
+  }, [loadInquiries, reference, session?.user?.id, session?.access_token, supabase]);
 
   // 30-second polling fallback for real-time truck position updates
   useEffect(() => {
@@ -439,7 +511,7 @@ function CustomerInquiryList({
           <button
             type="button"
             className="inquiries-refresh-btn"
-            onClick={loadInquiries}
+            onClick={() => loadInquiries()}
             disabled={isLoading}
             title="Refresh inquiries"
             aria-label="Refresh inquiries"
@@ -497,7 +569,7 @@ function CustomerInquiryList({
               inquiry={inquiry}
               session={session}
               showTimeline={!compact}
-              onSaved={loadInquiries}
+              onSaved={() => loadInquiries()}
             />
           ))}
         </div>

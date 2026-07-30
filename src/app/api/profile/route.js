@@ -110,6 +110,17 @@ export async function PUT(request) {
       .select('role')
       .eq('id', user.id)
       .maybeSingle();
+
+    // If this read fails, existing.data is null and getRoleForEmail falls back to
+    // 'user' — the upsert below would then permanently demote a DB-promoted admin
+    // over a transient blip. Refuse to write a role we could not read.
+    if (existing.error) {
+      return NextResponse.json(
+        { error: 'Could not verify your account role. Please try again.' },
+        { status: 502 },
+      );
+    }
+
     const profile = {
       id: user.id,
       email: user.email || '',

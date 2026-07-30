@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, Bell, CheckCircle2, ClipboardList, Headphones, MapPin, PackageCheck, Plus, ShieldCheck, Star, UserRound, Truck } from 'lucide-react';
+import { ArrowRight, Bell, CheckCircle2, ClipboardList, Headphones, MapPin, PackageCheck, Plus, ShieldCheck, UserRound, Truck } from 'lucide-react';
 
 const HOW_IT_WORKS = [
   {
@@ -31,7 +31,6 @@ function Hero({
   onTrackReference,
   onSupport,
   onNotifications,
-  onViewFilteredInquiries,
 }) {
   const [trackingInput, setTrackingInput] = useState('');
 
@@ -96,60 +95,13 @@ function Hero({
               </button>
             </div>
             <img src="/Truck.png" alt="AHV green logistics truck" />
-            <div className="mobile-hero-dots" aria-hidden="true">
-              <span className="active" />
-              <span />
-              <span />
-            </div>
           </div>
 
-          <div className="mobile-stat-card" aria-label="AHV service stats">
-            <div>
-              <span><Star size={20} /></span>
-              <strong>4.8</strong>
-              <small>Rating</small>
-            </div>
-            <div>
-              <span><Truck size={20} /></span>
-              <strong>120</strong>
-              <small>Total trips</small>
-            </div>
-            <div>
-              <span><ShieldCheck size={20} /></span>
-              <strong>3</strong>
-              <small>Years service</small>
-            </div>
-          </div>
-
-          <div className="mobile-express-card">
-            <div className="mobile-section-head">
-              <h3>AHV Express</h3>
-              <button type="button" onClick={onMyInquiries}>
-                View all trips <ArrowRight size={16} />
-              </button>
-            </div>
-            <div className="mobile-trip-tabs">
-              <button type="button" onClick={() => onViewFilteredInquiries?.('active')}>
-                <Truck size={15} /> Ongoing
-              </button>
-              <button type="button" onClick={() => onViewFilteredInquiries?.('completed')}>
-                <CheckCircle2 size={15} /> Completed
-              </button>
-            </div>
-            <div className="mobile-trip-list">
-              {lanes.slice(0, 3).map((lane, index) => (
-                <button key={lane} type="button" onClick={onMyInquiries}>
-                  <span className="mobile-trip-pin"><MapPin size={18} /></span>
-                  <span>
-                    <strong>{lane}</strong>
-                    <small>Trip ID: AHV-2507-00{12 - index}</small>
-                  </span>
-                  <em>{index === 0 ? 'In Progress' : 'On Route'}</em>
-                  <ArrowRight size={18} />
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* The rating / total-trips / years-service tiles and the "AHV Express"
+              trip list were hardcoded fiction — a 4.8 rating, 120 trips, and
+              AHV-2507-00xx trip IDs shown as if they were this user's shipments.
+              On mobile they were the ONLY thing rendered, because the real hero
+              copy was display:none. Removed; the shortcuts below are real. */}
 
           <div className="mobile-track-card">
             <div>

@@ -1,9 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
-import { INQUIRY_STATUSES } from '../../../../data/inquiryStatus.js';
 import { getAdminContext } from '../../../../lib/admin/auth.js';
 import { getAdminDirectory } from '../../../../lib/admin/roles.js';
 import { hydrateInquiryRows } from '../../../../lib/inquiries/serverQueries.js';
+import { emptyStatusCounters, getStatusCounters } from '../../../../lib/admin/statusCounters.js';
 
 function mapInquiry(row, profilesById) {
   return {
@@ -15,28 +15,15 @@ function mapInquiry(row, profilesById) {
   };
 }
 
-function matchesSearch(inquiry, search) {
-  if (!search) {
-    return true;
-  }
-
-  const haystack = [
-    inquiry.reference,
-    inquiry.customer_name,
-    inquiry.customer_phone,
-    inquiry.pickup_address,
-    inquiry.delivery_address,
-    inquiry.cargo_type,
-    inquiry.status,
-  ]
-    .join(' ')
-    .toLowerCase();
-
-  return haystack.includes(search.toLowerCase());
-}
-
+// Characters that are structurally meaningful inside a PostgREST .or() filter,
+// where the grammar is `field.operator.value` with comma-separated terms.
+// Previously only % and , were stripped, so an innocuous query like "Bldg (A)"
+// or "St. Paul" could produce a 400 instead of results.
 function sanitizeSearch(value) {
-  return value.replaceAll('%', '').replaceAll(',', ' ').trim();
+  return value
+    .replace(/[%,().*:"'\\]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function applyAdminFilters(query, { status, search }) {
@@ -46,8 +33,10 @@ function applyAdminFilters(query, { status, search }) {
     nextQuery = nextQuery.eq('status', status);
   }
 
-  if (search) {
-    const pattern = `%${sanitizeSearch(search)}%`;
+  const term = search ? sanitizeSearch(search) : '';
+
+  if (term) {
+    const pattern = `%${term}%`;
     nextQuery = nextQuery.or(
       [
         `reference.ilike.${pattern}`,
@@ -56,29 +45,14 @@ function applyAdminFilters(query, { status, search }) {
         `pickup_address.ilike.${pattern}`,
         `delivery_address.ilike.${pattern}`,
         `cargo_type.ilike.${pattern}`,
+        // status was searchable via the old in-JS filter but not in SQL, so it
+        // matched inconsistently and never affected the count.
+        `status.ilike.${pattern}`,
       ].join(','),
     );
   }
 
   return nextQuery;
-}
-
-async function countByStatus(supabase, status) {
-  let query = supabase
-    .from('inquiries')
-    .select('reference', { count: 'exact', head: true });
-
-  if (status !== 'all') {
-    query = query.eq('status', status);
-  }
-
-  const { count, error } = await query;
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return count || 0;
 }
 
 export async function GET(request) {
@@ -113,7 +87,11 @@ export async function GET(request) {
   let inquiries;
 
   try {
-    inquiries = (await hydrateInquiryRows(supabase, data || [])).filter((inquiry) => matchesSearch(inquiry, search));
+    // No in-JS re-filter here. SQL already applied the search and produced
+    // `count`, so filtering again could only drop rows the database had matched —
+    // making `pagination.total` overstate the rows actually returned and
+    // rendering short pages.
+    inquiries = await hydrateInquiryRows(supabase, data || []);
   } catch (hydrateError) {
     return NextResponse.json({ error: hydrateError.message }, { status: 502 });
   }
@@ -136,16 +114,9 @@ export async function GET(request) {
   let counters;
 
   try {
-    const counts = await Promise.all(['all', ...INQUIRY_STATUSES].map((inquiryStatus) => countByStatus(supabase, inquiryStatus)));
-    counters = ['all', ...INQUIRY_STATUSES].reduce((current, inquiryStatus, index) => ({
-      ...current,
-      [inquiryStatus]: counts[index],
-    }), {});
+    counters = await getStatusCounters(supabase);
   } catch {
-    counters = INQUIRY_STATUSES.reduce((current, inquiryStatus) => ({
-      ...current,
-      [inquiryStatus]: 0,
-    }), { all: count || inquiries.length });
+    counters = emptyStatusCounters(count || inquiries.length);
   }
 
   return NextResponse.json({

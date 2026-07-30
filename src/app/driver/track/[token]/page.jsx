@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useRef, useState } from 'react';
+import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   BatteryCharging,
@@ -14,21 +14,31 @@ import {
   WifiOff,
   Sun,
 } from 'lucide-react';
+import {
+  ACCURACY_GRACE_MS,
+  HEARTBEAT_MS,
+  MAX_ACCEPTABLE_ACCURACY_M,
+  QUEUE_LIMIT,
+  TRACKING_OPTIONS,
+  clearQueue,
+  coordsToPayload,
+  describeGeolocationError,
+  evaluateFix,
+  fixAge,
+  formatAge,
+  isFixFresh,
+  loadQueue,
+  retryDelay,
+  saveQueue,
+} from '../../../../lib/gps/tracking.js';
+import { acquireWakeLock, releaseWakeLock } from '../../../../lib/gps/wakeLock.js';
 
-const TRACKING_OPTIONS = {
-  enableHighAccuracy: true,
-  maximumAge: 3000,
-  timeout: 15000,
-};
-
-// How often to send a heartbeat even if GPS hasn't moved
-const HEARTBEAT_MS = 15000;
-// How often to retry a failed send (ms)
-const RETRY_MS = 5000;
-// Max consecutive send failures before showing a strong warning
+// Consecutive send failures before the network warning is escalated.
 const MAX_FAIL_BEFORE_WARN = 3;
-// Message shown in browser "leave page?" dialog
-const LEAVE_WARNING = 'GPS tracking is still ON. If you leave, your location will stop being shared with the customer. Are you sure?';
+// How often the on-screen fix age refreshes.
+const AGE_TICK_MS = 5000;
+const LEAVE_WARNING =
+  'GPS tracking is still ON. If you leave, your location will stop being shared with the customer. Are you sure?';
 
 function formatCoordinate(value) {
   return Number.isFinite(Number(value)) ? Number(value).toFixed(5) : 'Waiting…';
@@ -38,46 +48,6 @@ function formatAccuracy(value) {
   return Number.isFinite(Number(value)) ? `+/- ${Math.round(Number(value))} m` : 'Checking…';
 }
 
-function coordsToPayload(position, active = true) {
-  const { latitude, longitude, accuracy, speed, heading } = position.coords;
-  const speedKph = Number.isFinite(speed) && speed !== null ? speed * 3.6 : null;
-  return {
-    lat: latitude,
-    lng: longitude,
-    accuracy,
-    speed: speedKph,
-    heading,
-    active,
-    timestamp: new Date(position.timestamp || Date.now()).toISOString(),
-    locationLabel: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// NoSleep video trick — plays a tiny silent video loop to prevent screen sleep
-// on browsers that don't support the Wake Lock API (e.g. older iOS Safari).
-// ---------------------------------------------------------------------------
-let noSleepVideo = null;
-function enableNoSleep() {
-  if (typeof window === 'undefined') return;
-  if (!noSleepVideo) {
-    noSleepVideo = document.createElement('video');
-    noSleepVideo.setAttribute('loop', '');
-    noSleepVideo.setAttribute('playsinline', '');
-    noSleepVideo.setAttribute('muted', '');
-    // 1x1 pixel silent MP4 (inline base64 - very tiny)
-    noSleepVideo.setAttribute('src', 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAAsxtZGF0AAACrgYF//+q3EXpvebZSLeWLNgg2SPu73gyNjQgLSBjb3JlIDE0OCByMjYwMSBhMGNkN2QzIC0gSC4yNjQvTVBFRy00IEFWQyBjb2RlYyAtIENvcHlsZWZ0IDIwMDMtMjAxNSAtIGh0dHA6Ly93d3cudmlkZW9sYW4ub3JnL3gyNjQuaHRtbCAtIG9wdGlvbnM6IGNhYmFjPTEgcmVmPTMgZGVibG9jaz0xOjA6MCBhbmFseXNlPTB4MzoweDExMyBtZT1oZXggc3VibWU9NyBwc3k9MSBwc3lfcmQ9MS4wMDowLjAwIG1peGVkX3JlZj0xIG1lX3JhbmdlPTE2IGNocm9tYV9tZT0xIHRyZWxsaXM9MSA4eDhkY3Q9MSBjcW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0tMiBkZXNxdWFudHBlbmFsdHk9MTMgbmFsLWhyZD1ub25lIGNvbG9yc3BhY2U9dW5zcGVjaWZpZWQgYml0ZGVwdGg9OCBjb25zdHJhaW5lZF9pbnRyYT0wIGJmcmFtZXM9MyBiX3B5cmFtaWQ9MiByZW9yZGVyPTEgZHVwbGljYXRlX21lcmdlPTEgbm8tc3R5bGVzPTAgcmM9Y3JmIG1idHJlZT0xIGNyZj0yMy4wIHFjb21wPTAuNjAgcXBtaW49MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTE6MS4wMACAAAAOaGdgAAAABkUAAAAMaWV0ZgAAAA==');
-    noSleepVideo.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0.01;pointer-events:none;';
-    document.body.appendChild(noSleepVideo);
-  }
-  noSleepVideo.play().catch(() => {});
-}
-function disableNoSleep() {
-  if (noSleepVideo) {
-    noSleepVideo.pause();
-  }
-}
-
 export default function DriverTrackingPage({ params }) {
   const { token } = use(params);
 
@@ -85,97 +55,205 @@ export default function DriverTrackingPage({ params }) {
   const [error, setError] = useState(null);
   const [isTracking, setIsTracking] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(null);
+  const [lastSentAt, setLastSentAt] = useState(null);
   const [lastPayload, setLastPayload] = useState(null);
   const [gpsError, setGpsError] = useState(null);
   const [sendError, setSendError] = useState(null);
   const [wakeLockActive, setWakeLockActive] = useState(false);
   const [consecutiveFails, setConsecutiveFails] = useState(0);
   const [screenWarning, setScreenWarning] = useState(false);
+  const [lowAccuracy, setLowAccuracy] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [permissionState, setPermissionState] = useState('unknown');
+  const [ageTick, setAgeTick] = useState(0);
 
   const wakeLockRef = useRef(null);
+  const wakeLockRetryRef = useRef(null);
   const heartbeatRef = useRef(null);
   const retryRef = useRef(null);
-  const lastPayloadRef = useRef(null);
   const watchIdRef = useRef(null);
   const isTrackingRef = useRef(false);
   const failCountRef = useRef(0);
+  const isMountedRef = useRef(true);
+
+  // The last fix we successfully sent, annotated with sentAt. Drives gating.
+  const lastSentFixRef = useRef(null);
+  // Queue of fixes waiting to go out. Survives reloads via localStorage.
+  const queueRef = useRef([]);
+  // Guards against overlapping sends: several POSTs in flight land out of order.
+  const isDrainingRef = useRef(false);
+  const abortRef = useRef(null);
+  const gpsErrorKeyRef = useRef(null);
+  // drainQueue is defined below but referenced by listeners registered above it.
+  // Going through a ref keeps those listeners off the first render's closure.
+  const drainQueueRef = useRef(() => {});
 
   // ------------------------------------------------------------------
   // Load inquiry
   // ------------------------------------------------------------------
   useEffect(() => {
-    fetch(`/api/driver/track/${token}`)
+    const controller = new AbortController();
+
+    fetch(`/api/driver/track/${token}`, { signal: controller.signal })
       .then((res) => res.json())
       .then((data) => {
+        if (controller.signal.aborted) return;
         if (data.error) throw new Error(data.error);
+
         setInquiry(data.inquiry);
-        if (data.inquiry?.driver_lat && data.inquiry?.driver_lng) {
+
+        const lat = Number(data.inquiry?.driver_lat);
+        const lng = Number(data.inquiry?.driver_lng);
+
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
           const saved = {
-            lat: data.inquiry.driver_lat,
-            lng: data.inquiry.driver_lng,
+            lat,
+            lng,
             accuracy: data.inquiry.driver_accuracy_m,
             speed: data.inquiry.driver_speed_kph,
             heading: data.inquiry.driver_heading,
+            fixTimestamp: data.inquiry.driver_fix_at || data.inquiry.driver_updated_at || null,
           };
           setLastPayload(saved);
-          lastPayloadRef.current = saved;
-          setLastUpdated(data.inquiry.driver_updated_at ? new Date(data.inquiry.driver_updated_at) : null);
+          setLastSentAt(data.inquiry.driver_updated_at ? new Date(data.inquiry.driver_updated_at) : null);
         }
       })
-      .catch((err) => setError(err.message));
+      .catch((err) => {
+        if (err.name === 'AbortError') return;
+        setError(err.message);
+      });
+
+    return () => controller.abort();
   }, [token]);
 
   // ------------------------------------------------------------------
-  // Wake Lock — request / re-request
-  // ------------------------------------------------------------------
-  const requestWakeLock = useCallback(async () => {
-    // First try native Wake Lock API
-    if ('wakeLock' in navigator) {
-      try {
-        wakeLockRef.current = await navigator.wakeLock.request('screen');
-        setWakeLockActive(true);
-        setScreenWarning(false);
-        wakeLockRef.current.addEventListener('release', () => {
-          setWakeLockActive(false);
-          // If still tracking, set a screen warning and attempt re-acquire
-          if (isTrackingRef.current) {
-            setScreenWarning(true);
-            window.setTimeout(() => {
-              if (isTrackingRef.current) requestWakeLock();
-            }, 2000);
-          }
-        });
-        return;
-      } catch {
-        // Fall through to NoSleep fallback
-      }
-    }
-    // NoSleep video fallback for iOS Safari / older browsers
-    enableNoSleep();
-    setWakeLockActive(true); // treat as "active" for UI purposes
-    setScreenWarning(false);
-  }, []);
-
-  const releaseWakeLock = useCallback(async () => {
-    disableNoSleep();
-    try {
-      await wakeLockRef.current?.release();
-    } catch {
-      // Already released
-    } finally {
-      wakeLockRef.current = null;
-      setWakeLockActive(false);
-    }
-  }, []);
-
-  // ------------------------------------------------------------------
-  // Re-acquire wake lock when user comes back to the tab / unlocks phone
+  // Restore any fixes stranded by a reload or a killed tab
   // ------------------------------------------------------------------
   useEffect(() => {
-    const handleVisibilityChange = async () => {
+    const restored = loadQueue(token);
+    queueRef.current = restored;
+    setPendingCount(restored.length);
+  }, [token]);
+
+  // ------------------------------------------------------------------
+  // Geolocation permission pre-flight + secure context check
+  // ------------------------------------------------------------------
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    if (!window.isSecureContext) {
+      setGpsError({
+        terminal: true,
+        title: 'Hindi secure ang connection',
+        message: 'Kailangan ng HTTPS para sa GPS. Buksan ang https:// na link na binigay ng AHV.',
+      });
+      return undefined;
+    }
+
+    if (!navigator.geolocation) {
+      setGpsError({
+        terminal: true,
+        title: 'Walang GPS support',
+        message: 'Hindi supported ang geolocation sa browser na ito. Gamitin ang Chrome o Safari.',
+      });
+      return undefined;
+    }
+
+    if (!navigator.permissions?.query) return undefined;
+
+    let status = null;
+    const handleChange = () => setPermissionState(status?.state || 'unknown');
+
+    navigator.permissions
+      .query({ name: 'geolocation' })
+      .then((result) => {
+        status = result;
+        setPermissionState(result.state);
+        result.addEventListener('change', handleChange);
+      })
+      .catch(() => {
+        // Firefox and some WebViews don't expose the geolocation permission.
+      });
+
+    return () => status?.removeEventListener('change', handleChange);
+  }, []);
+
+  // ------------------------------------------------------------------
+  // Online / offline
+  // ------------------------------------------------------------------
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const goOnline = () => {
+      setIsOffline(false);
+      // Data is back — flush whatever piled up during the outage.
+      if (isTrackingRef.current) drainQueueRef.current();
+    };
+    const goOffline = () => setIsOffline(true);
+
+    setIsOffline(!navigator.onLine);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  }, []);
+
+  // ------------------------------------------------------------------
+  // Tick the displayed fix age so "Live / Stale" is never frozen
+  // ------------------------------------------------------------------
+  useEffect(() => {
+    if (!isTracking) return undefined;
+    const id = window.setInterval(() => setAgeTick((n) => n + 1), AGE_TICK_MS);
+    return () => window.clearInterval(id);
+  }, [isTracking]);
+
+  // ------------------------------------------------------------------
+  // Wake Lock
+  // ------------------------------------------------------------------
+  const requestWakeLock = useCallback(async () => {
+    const result = await acquireWakeLock(wakeLockRef.current, () => {
+      if (!isMountedRef.current) return;
+      setWakeLockActive(false);
+
+      if (isTrackingRef.current) {
+        setScreenWarning(true);
+        window.clearTimeout(wakeLockRetryRef.current);
+        wakeLockRetryRef.current = window.setTimeout(() => {
+          if (isTrackingRef.current && isMountedRef.current) requestWakeLock();
+        }, 2000);
+      }
+    });
+
+    if (!isMountedRef.current) {
+      // Unmounted while awaiting — don't leave a sentinel behind.
+      await releaseWakeLock(result.sentinel);
+      return;
+    }
+
+    wakeLockRef.current = result.sentinel;
+    // Report what is actually holding the screen, not what we attempted.
+    setWakeLockActive(result.held);
+    setScreenWarning(!result.held && isTrackingRef.current);
+  }, []);
+
+  const dropWakeLock = useCallback(async () => {
+    window.clearTimeout(wakeLockRetryRef.current);
+    wakeLockRetryRef.current = null;
+    const sentinel = wakeLockRef.current;
+    wakeLockRef.current = null;
+    await releaseWakeLock(sentinel);
+    if (isMountedRef.current) setWakeLockActive(false);
+  }, []);
+
+  // Re-acquire when the driver returns to the tab or unlocks the phone.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && isTrackingRef.current) {
-        await requestWakeLock();
+        requestWakeLock();
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -183,54 +261,122 @@ export default function DriverTrackingPage({ params }) {
   }, [requestWakeLock]);
 
   // ------------------------------------------------------------------
-  // Send location with retry logic
+  // Queue draining — one send in flight at a time, oldest first
   // ------------------------------------------------------------------
-  const sendLocation = useCallback(async (payload) => {
-    window.clearTimeout(retryRef.current);
-    setIsSending(true);
-    setSendError(null);
+  const persistQueue = useCallback(() => {
+    saveQueue(token, queueRef.current);
+    if (isMountedRef.current) setPendingCount(queueRef.current.length);
+  }, [token]);
+
+  const postPayload = useCallback(async (payload) => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const timeoutId = window.setTimeout(() => controller.abort(), 12000);
 
     try {
       const response = await fetch(`/api/driver/track/${token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
       const data = await response.json().catch(() => ({}));
 
-      if (!response.ok) throw new Error(data.error || 'Could not send GPS location.');
+      if (!response.ok) {
+        const err = new Error(data.error || 'Could not send GPS location.');
+        // 4xx other than 429 means this payload will never be accepted.
+        err.permanent = response.status >= 400 && response.status < 500 && response.status !== 429;
+        throw err;
+      }
 
-      if (payload.lat && payload.lng) {
-        setLastPayload(payload);
-        lastPayloadRef.current = payload;
-      }
-      setLastUpdated(new Date(data.driverUpdatedAt || Date.now()));
-      failCountRef.current = 0;
-      setConsecutiveFails(0);
-    } catch (err) {
-      failCountRef.current += 1;
-      setConsecutiveFails(failCountRef.current);
-      setSendError(`Send failed (${failCountRef.current}x): ${err.message}`);
-      // Auto-retry after RETRY_MS if still tracking
-      if (isTrackingRef.current) {
-        retryRef.current = window.setTimeout(() => {
-          if (lastPayloadRef.current && isTrackingRef.current) {
-            sendLocation({ ...lastPayloadRef.current, active: true, timestamp: new Date().toISOString() });
-          }
-        }, RETRY_MS);
-      }
+      return data;
     } finally {
-      setIsSending(false);
+      window.clearTimeout(timeoutId);
+      if (abortRef.current === controller) abortRef.current = null;
     }
   }, [token]);
+
+  const drainQueue = useCallback(async () => {
+    if (isDrainingRef.current) return;
+    if (queueRef.current.length === 0) return;
+
+    isDrainingRef.current = true;
+    if (isMountedRef.current) setIsSending(true);
+
+    try {
+      while (queueRef.current.length > 0) {
+        const payload = queueRef.current[0];
+
+        try {
+          const data = await postPayload(payload);
+
+          // Accepted (or superseded by a newer fix — either way it's done).
+          queueRef.current.shift();
+          persistQueue();
+
+          if (!data.superseded) {
+            lastSentFixRef.current = { ...payload, sentAt: Date.now() };
+            if (isMountedRef.current) {
+              setLastPayload(payload);
+              setLastSentAt(new Date(data.driverUpdatedAt || Date.now()));
+            }
+          }
+
+          failCountRef.current = 0;
+          if (isMountedRef.current) {
+            setConsecutiveFails(0);
+            setSendError(null);
+          }
+        } catch (err) {
+          if (err.name === 'AbortError') {
+            // Superseded by a newer send or a timeout; leave it queued.
+            break;
+          }
+
+          if (err.permanent) {
+            // The server will never take this one (expired token, bad payload).
+            queueRef.current.shift();
+            persistQueue();
+            if (isMountedRef.current) setSendError(err.message);
+            break;
+          }
+
+          failCountRef.current += 1;
+          if (isMountedRef.current) {
+            setConsecutiveFails(failCountRef.current);
+            setSendError(`Send failed (${failCountRef.current}x): ${err.message}`);
+          }
+
+          if (isTrackingRef.current) {
+            window.clearTimeout(retryRef.current);
+            retryRef.current = window.setTimeout(() => {
+              if (isTrackingRef.current) drainQueue();
+            }, retryDelay(failCountRef.current));
+          }
+          break;
+        }
+      }
+    } finally {
+      isDrainingRef.current = false;
+      if (isMountedRef.current) setIsSending(false);
+    }
+  }, [persistQueue, postPayload]);
+
+  // Keep the listener-facing ref pointing at the current drainQueue.
+  drainQueueRef.current = drainQueue;
+
+  const enqueue = useCallback((payload) => {
+    queueRef.current = [...queueRef.current, payload].slice(-QUEUE_LIMIT);
+    persistQueue();
+    // While offline the fix stays queued; the `online` listener flushes it.
+    if (navigator.onLine !== false) drainQueue();
+  }, [drainQueue, persistQueue]);
 
   // ------------------------------------------------------------------
   // Stop tracking
   // ------------------------------------------------------------------
   const stopTracking = useCallback(async () => {
-    isTrackingRef.current = false;
-    setIsTracking(false);
-
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
@@ -240,85 +386,189 @@ export default function DriverTrackingPage({ params }) {
     window.clearTimeout(retryRef.current);
     heartbeatRef.current = null;
     retryRef.current = null;
+
     setGpsError(null);
     setScreenWarning(false);
-    await releaseWakeLock();
+    setLowAccuracy(false);
+    await dropWakeLock();
 
-    const finalPayload = lastPayloadRef.current
-      ? { ...lastPayloadRef.current, active: false, timestamp: new Date().toISOString() }
-      : { active: false, timestamp: new Date().toISOString() };
-    await sendLocation(finalPayload);
-  }, [releaseWakeLock, sendLocation]);
+    // Send the stop *before* clearing the tracking flag, so the retry path is
+    // still armed. Clearing it first meant one failed request left the row
+    // driver_tracking_active = true forever — a phantom live truck.
+    const last = lastSentFixRef.current || lastPayload;
+    const stopPayload = last
+      ? { ...last, sentAt: undefined, active: false }
+      : { active: false };
+
+    // The stop write must land. Queued position fixes refer to a trip that is
+    // now over, so drop them rather than let them delay the stop.
+    queueRef.current = [stopPayload];
+    persistQueue();
+    await drainQueue();
+
+    isTrackingRef.current = false;
+    setIsTracking(false);
+
+    // Anything left over refers to a finished trip.
+    if (queueRef.current.length === 0) clearQueue(token);
+  }, [drainQueue, dropWakeLock, lastPayload, persistQueue, token]);
 
   // ------------------------------------------------------------------
   // Start tracking
   // ------------------------------------------------------------------
   const startTracking = useCallback(() => {
     if (!navigator.geolocation) {
-      setGpsError('Geolocation is not supported by this phone or browser.');
+      setGpsError({
+        terminal: true,
+        title: 'Walang GPS support',
+        message: 'Hindi supported ang geolocation sa phone o browser na ito.',
+      });
       return;
     }
 
     isTrackingRef.current = true;
     failCountRef.current = 0;
+    gpsErrorKeyRef.current = null;
     setIsTracking(true);
     setGpsError(null);
     setSendError(null);
     setConsecutiveFails(0);
     requestWakeLock();
 
-    const id = navigator.geolocation.watchPosition(
+    watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
         const payload = coordsToPayload(position, true);
-        lastPayloadRef.current = payload;
-        sendLocation(payload);
+        const decision = evaluateFix(payload, lastSentFixRef.current);
+
+        setLowAccuracy(decision.lowAccuracy);
+        // A fix arrived, so clear any "no signal" message.
+        if (gpsErrorKeyRef.current !== null) {
+          gpsErrorKeyRef.current = null;
+          setGpsError(null);
+        }
+
+        // Always surface the newest reading locally, even when we don't send it —
+        // the driver should see the GPS is alive.
+        setLastPayload(payload);
+
+        if (decision.send) enqueue(payload);
       },
       (err) => {
-        setGpsError(`GPS error: ${err.message}. Will retry automatically.`);
-        // Don't stop tracking — GPS might recover (e.g. user goes outside)
+        const described = describeGeolocationError(err);
+
+        // TIMEOUT fires every ~20s; only re-render when the message changes.
+        if (gpsErrorKeyRef.current !== err.code) {
+          gpsErrorKeyRef.current = err.code;
+          setGpsError(described);
+        }
+
+        // PERMISSION_DENIED is terminal: the watch will never fire again, so
+        // continuing to publish active:true would be a lie.
+        if (described.terminal) {
+          stopTracking();
+        }
       },
       TRACKING_OPTIONS,
     );
 
-    watchIdRef.current = id;
-
-    // Heartbeat: keep the server alive even when GPS doesn't fire a new position
+    // Heartbeat: resend the last known fix, keeping its ORIGINAL fixTimestamp so
+    // the customer sees the true age of the position rather than a fresh lie.
     heartbeatRef.current = window.setInterval(() => {
-      if (lastPayloadRef.current && isTrackingRef.current) {
-        sendLocation({ ...lastPayloadRef.current, active: true, timestamp: new Date().toISOString() });
+      if (!isTrackingRef.current) return;
+      if (queueRef.current.length > 0) {
+        drainQueue();
+        return;
       }
+      const last = lastSentFixRef.current;
+      if (last) enqueue({ ...last, sentAt: undefined, active: true });
     }, HEARTBEAT_MS);
-  }, [requestWakeLock, sendLocation]);
+  }, [drainQueue, enqueue, requestWakeLock, stopTracking]);
 
   // ------------------------------------------------------------------
-  // Cleanup on unmount
+  // Cleanup
   // ------------------------------------------------------------------
   useEffect(() => {
+    isMountedRef.current = true;
+
     return () => {
-      if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
+      isMountedRef.current = false;
+
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
       window.clearInterval(heartbeatRef.current);
       window.clearTimeout(retryRef.current);
-      releaseWakeLock();
+      window.clearTimeout(wakeLockRetryRef.current);
+      abortRef.current?.abort();
+
+      const sentinel = wakeLockRef.current;
+      wakeLockRef.current = null;
+      releaseWakeLock(sentinel);
+
+      // Client-side navigation unmounts this page without firing beforeunload.
+      // Mark the trip inactive so the customer map doesn't show a phantom truck.
+      if (isTrackingRef.current) {
+        isTrackingRef.current = false;
+        const last = lastSentFixRef.current;
+        const body = JSON.stringify(last ? { ...last, sentAt: undefined, active: false } : { active: false });
+        navigator.sendBeacon?.(
+          `/api/driver/track/${token}`,
+          new Blob([body], { type: 'application/json' }),
+        );
+      }
     };
-  }, [releaseWakeLock]);
+  }, [token]);
 
   // ------------------------------------------------------------------
-  // Warn driver before leaving/closing page while tracking is active
+  // Leaving the page
   // ------------------------------------------------------------------
   useEffect(() => {
     const handleBeforeUnload = (e) => {
       if (!isTrackingRef.current) return;
       e.preventDefault();
-      e.returnValue = LEAVE_WARNING; // required for Chrome
+      e.returnValue = LEAVE_WARNING;
       return LEAVE_WARNING;
     };
+
+    // iOS Safari ignores beforeunload dialogs, so pagehide is the reliable
+    // flush. sendBeacon survives the page going away; fetch does not.
+    const handlePageHide = () => {
+      if (!isTrackingRef.current) return;
+      const last = lastSentFixRef.current;
+      const pending = queueRef.current[queueRef.current.length - 1] || last;
+      if (!pending) return;
+      const body = JSON.stringify({ ...pending, sentAt: undefined, active: true });
+      navigator.sendBeacon?.(
+        `/api/driver/track/${token}`,
+        new Blob([body], { type: 'application/json' }),
+      );
+    };
+
     window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, []);
+    window.addEventListener('pagehide', handlePageHide);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handlePageHide);
+    };
+  }, [token]);
 
   // ------------------------------------------------------------------
-  // Error screen
+  // Derived display state
   // ------------------------------------------------------------------
+  const fixStatus = useMemo(() => {
+    const stamp = lastPayload?.fixTimestamp;
+    const age = fixAge(stamp);
+
+    if (!isTracking) return { tone: 'idle', label: 'Tracking paused' };
+    if (age === null) return { tone: 'waiting', label: 'Waiting for first GPS fix' };
+    if (isFixFresh(stamp)) return { tone: 'live', label: `Live · ${formatAge(age)}` };
+    return { tone: 'stale', label: `Stale · ${formatAge(age)}` };
+    // ageTick forces this to recompute on a timer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTracking, lastPayload, ageTick]);
+
   if (error) {
     return (
       <main className="driver-tracking-page">
@@ -344,32 +594,18 @@ export default function DriverTrackingPage({ params }) {
   }
 
   const hasNetworkIssue = consecutiveFails >= MAX_FAIL_BEFORE_WARN;
+  const permissionBlocked = permissionState === 'denied';
 
   return (
     <main className="driver-tracking-page">
       <section className="driver-tracking-card">
 
-        {/* Sticky DO NOT LEAVE banner — only when tracking */}
         {isTracking && (
-          <div style={{
-            position: 'sticky',
-            top: 0,
-            zIndex: 999,
-            background: '#dc2626',
-            color: '#fff',
-            padding: '10px 14px',
-            borderRadius: '10px',
-            marginBottom: '0.75rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            fontWeight: '700',
-            fontSize: '0.88rem',
-            boxShadow: '0 4px 12px rgba(220,38,38,0.35)',
-            animation: 'pulseBorder 2s ease-in-out infinite',
-          }}>
-            <Radio size={18} style={{ flexShrink: 0, animation: 'pulseGps 1.2s infinite' }} />
-            <span>🔴 GPS LIVE — Huwag mag-back o mag-close ng browser! Mawawala ang tracking.</span>
+          <div className="driver-live-banner" role="status">
+            <Radio size={18} className="driver-live-banner-icon" />
+            <span lang="fil">
+              🔴 GPS LIVE — Huwag mag-back o mag-close ng browser! Mawawala ang tracking.
+            </span>
           </div>
         )}
 
@@ -387,9 +623,34 @@ export default function DriverTrackingPage({ params }) {
           </div>
         </div>
 
-        {/* Screen warning banner */}
+        <div className={`driver-fix-status is-${fixStatus.tone}`}>
+          <span className="driver-fix-dot" aria-hidden="true" />
+          <strong>{fixStatus.label}</strong>
+          {pendingCount > 0 && <span className="driver-fix-pending">{pendingCount} queued</span>}
+        </div>
+
+        {permissionBlocked && !isTracking && (
+          <div className="driver-alert danger">
+            <AlertCircle size={18} />
+            <span lang="fil">
+              <strong>Naka-block ang location.</strong> Pindutin ang padlock 🔒 sa address bar →
+              Location → Allow, tapos i-reload ang page.
+            </span>
+          </div>
+        )}
+
+        {isOffline && (
+          <div className="driver-alert warn">
+            <WifiOff size={18} />
+            <span lang="fil">
+              <strong>Offline.</strong> Naka-save ang {pendingCount || 'mga'} location updates at
+              awtomatikong ipapadala kapag bumalik ang data.
+            </span>
+          </div>
+        )}
+
         {screenWarning && isTracking && (
-          <div className="driver-alert warn" style={{ background: '#fef3c7', borderColor: '#f59e0b', color: '#92400e', marginBottom: '0.75rem' }}>
+          <div className="driver-alert warn">
             <Sun size={18} />
             <span>
               <strong>Screen lock detected!</strong> Your phone screen may have dimmed or locked.
@@ -398,13 +659,23 @@ export default function DriverTrackingPage({ params }) {
           </div>
         )}
 
-        {/* Network warning banner */}
-        {hasNetworkIssue && isTracking && (
-          <div className="driver-alert" style={{ marginBottom: '0.75rem' }}>
+        {lowAccuracy && isTracking && (
+          <div className="driver-alert warn">
+            <MapPin size={18} />
+            <span lang="fil">
+              <strong>Mahina ang GPS accuracy</strong> (mas malaki sa {MAX_ACCEPTABLE_ACCURACY_M} m).
+              Hinihintay ang mas malinaw na signal — hanggang{' '}
+              {Math.round(ACCURACY_GRACE_MS / 1000)}s bago ito ipadala.
+            </span>
+          </div>
+        )}
+
+        {hasNetworkIssue && isTracking && !isOffline && (
+          <div className="driver-alert">
             <WifiOff size={18} />
             <span>
-              <strong>Network issue ({consecutiveFails} retries).</strong> Still trying to send your location.
-              Check your mobile data signal.
+              <strong>Network issue ({consecutiveFails} retries).</strong> Still trying to send your
+              location. Check your mobile data signal.
             </span>
           </div>
         )}
@@ -440,15 +711,17 @@ export default function DriverTrackingPage({ params }) {
             <strong>
               {Number.isFinite(Number(lastPayload?.speed))
                 ? `${Math.round(Number(lastPayload.speed))} kph`
-                : '0 kph'}
+                : '—'}
             </strong>
           </div>
         </div>
 
         {gpsError && (
-          <div className="driver-alert">
+          <div className={gpsError.terminal ? 'driver-alert danger' : 'driver-alert'}>
             <AlertCircle size={18} />
-            <span>{gpsError}</span>
+            <span lang="fil">
+              <strong>{gpsError.title}.</strong> {gpsError.message}
+            </span>
           </div>
         )}
 
@@ -478,20 +751,10 @@ export default function DriverTrackingPage({ params }) {
           )}
         </button>
 
-        {/* Tips for driver — only show when active */}
         {isTracking && (
-          <div style={{
-            marginTop: '0.75rem',
-            padding: '0.85rem 1rem',
-            background: 'rgba(22,163,74,0.07)',
-            border: '1px solid rgba(22,163,74,0.2)',
-            borderRadius: '10px',
-            fontSize: '0.8rem',
-            color: 'var(--ink, #111)',
-            lineHeight: '1.6',
-          }}>
+          <div className="driver-tips" lang="fil">
             <strong>💡 Tips para laging on ang GPS:</strong>
-            <ul style={{ margin: '0.4rem 0 0 1.1rem', padding: 0 }}>
+            <ul>
               <li>I-plug ang charger habang nagdadrive</li>
               <li>I-lower brightness pero huwag i-lock ang screen</li>
               <li>Huwag mag-switch ng apps — keep this tab open</li>
@@ -511,9 +774,7 @@ export default function DriverTrackingPage({ params }) {
           </span>
           <span>
             <ShieldCheck size={16} />
-            {lastUpdated
-              ? `Last sent ${lastUpdated.toLocaleTimeString()}`
-              : 'Waiting for first GPS fix'}
+            {lastSentAt ? `Last sent ${lastSentAt.toLocaleTimeString()}` : 'Waiting for first GPS fix'}
           </span>
         </div>
       </section>

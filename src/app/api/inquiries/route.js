@@ -3,6 +3,52 @@ import { NextResponse } from 'next/server';
 import { hydrateInquiryRow, hydrateInquiryRows } from '../../../lib/inquiries/serverQueries.js';
 import { getSupabaseAdminClient, hasSupabaseAdminConfig } from '../../../lib/supabase/admin.js';
 import { getUserFromRequest } from '../../../lib/supabase/auth.js';
+import { supportsGpsHardeningColumns } from '../../../lib/supabase/schemaCapabilities.js';
+import { checkInquiryQuota } from '../../../lib/inquiries/quota.js';
+import { REFERENCE_PATTERN } from '../../../lib/inquiries/reference.js';
+
+// Every inquiries column except driver_tracking_token / driver_token_expires_at.
+// Kept as an explicit allowlist rather than a `select('*')` minus a filter so a
+// future column has to be opted in deliberately.
+const CUSTOMER_INQUIRY_COLUMNS = [
+  'reference',
+  'user_id',
+  'customer_name',
+  'customer_phone',
+  'pickup_address',
+  'delivery_address',
+  'pickup_lat',
+  'pickup_lng',
+  'delivery_lat',
+  'delivery_lng',
+  'cargo_type',
+  'weight_kg',
+  'quantity',
+  'notes',
+  'route_distance_km',
+  'status',
+  'created_at',
+  'updated_at',
+  'assigned_admin_id',
+  'assigned_admin_email',
+  'admin_notes',
+  'quoted_price',
+  'target_pickup_date',
+  'target_delivery_date',
+  'updated_by',
+  'driver_location',
+  'driver_lat',
+  'driver_lng',
+  'driver_accuracy_m',
+  'driver_speed_kph',
+  'driver_heading',
+  'driver_updated_at',
+  'driver_tracking_active',
+];
+
+const CUSTOMER_INQUIRY_SELECT = CUSTOMER_INQUIRY_COLUMNS.join(', ');
+// driver_fix_at only exists after 20260730_driver_gps_hardening.sql.
+const CUSTOMER_INQUIRY_SELECT_HARDENED = [...CUSTOMER_INQUIRY_COLUMNS, 'driver_fix_at'].join(', ');
 
 function missingBackendResponse() {
   return NextResponse.json(
@@ -41,6 +87,44 @@ function requiredPoint(value, field) {
     lat,
     lng,
   };
+}
+
+function optionalPositiveNumber(value, field) {
+  if (value === '' || value === null || value === undefined) {
+    return null;
+  }
+
+  const number = Number(value);
+
+  if (!Number.isFinite(number) || number <= 0) {
+    throw new Error(`${field} must be a positive number.`);
+  }
+
+  return number;
+}
+
+function optionalRouteDistance(value) {
+  if (value === '' || value === null || value === undefined) {
+    return null;
+  }
+
+  const number = Number(value);
+
+  if (!Number.isFinite(number) || number < 0) {
+    throw new Error('Route distance is invalid.');
+  }
+
+  return number;
+}
+
+function requiredQuantity(value) {
+  const quantity = value === '' || value === null || value === undefined ? 1 : Number(value);
+
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10000) {
+    throw new Error('Quantity must be a whole number from 1 to 10000.');
+  }
+
+  return quantity;
 }
 
 async function getCompletedProfile(supabase, userId) {
@@ -89,9 +173,17 @@ export async function GET(request) {
   }
 
   const role = profile?.role || 'user';
+  // Customers must never receive driver_tracking_token: with it they could POST
+  // to the unauthenticated driver endpoint and fabricate their own shipment's
+  // GPS trail. Admins get the full row because the console needs the token to
+  // render and copy the driver link.
+  const customerSelect = (await supportsGpsHardeningColumns(supabase))
+    ? CUSTOMER_INQUIRY_SELECT_HARDENED
+    : CUSTOMER_INQUIRY_SELECT;
+
   const query = supabase
     .from('inquiries')
-    .select('*')
+    .select(role === 'admin' ? '*' : customerSelect)
     .order('created_at', { ascending: false })
     .limit(role === 'admin' ? Math.max(limit, 20) : limit);
 
@@ -135,13 +227,45 @@ export async function POST(request) {
   let pickupAddress;
   let deliveryAddress;
   let cargoType;
+  let pickupPoint;
+  let deliveryPoint;
+  let uploadedImages;
+  let routeDistance;
+  let weightKg;
+  let quantity;
 
   try {
     body = await request.json();
+    // The client mints the primary key (the R2 object keys for the cargo photos
+    // derive from it), so pin it to the expected shape rather than accepting any
+    // arbitrary string as a table PK.
     reference = requiredString(body.reference, 'Reference');
+    if (!REFERENCE_PATTERN.test(reference)) {
+      throw new Error('Reference format is invalid.');
+    }
     pickupAddress = requiredString(body.pickupAddress, 'Pickup address');
     deliveryAddress = requiredString(body.deliveryAddress, 'Delivery address');
     cargoType = requiredString(body.cargoType, 'Cargo type');
+    pickupPoint = requiredPoint(body.pickup, 'Pickup');
+    deliveryPoint = requiredPoint(body.delivery, 'Delivery');
+    routeDistance = optionalRouteDistance(body.routeDistance);
+    weightKg = optionalPositiveNumber(body.weight, 'Weight');
+    quantity = requiredQuantity(body.quantity);
+    uploadedImages = Array.isArray(body.images) ? body.images : [];
+
+    if (uploadedImages.length === 0) {
+      throw new Error('At least one cargo image is required.');
+    }
+
+    const invalidImage = uploadedImages.find((image) => !image?.key || !image?.publicUrl);
+
+    if (invalidImage) {
+      throw new Error('Every cargo image must finish uploading before submission.');
+    }
+
+    if (routeDistance !== null && routeDistance < 1) {
+      throw new Error('Pickup and delivery locations are too close. Minimum route distance is 1 km.');
+    }
   } catch (validationError) {
     return NextResponse.json({ error: validationError.message }, { status: 400 });
   }
@@ -159,8 +283,6 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Complete your profile before creating an inquiry.' }, { status: 403 });
     }
 
-    const pickup = body.pickup || {};
-    const delivery = body.delivery || {};
     const inquiry = {
       reference,
       user_id: user.id,
@@ -168,46 +290,25 @@ export async function POST(request) {
       customer_phone: requiredString(body.phone, 'Phone', 11, '^(09|\\+639)\\d{9}$'),
       pickup_address: pickupAddress,
       delivery_address: deliveryAddress,
-      pickup_lat: Number(pickup.lat),
-      pickup_lng: Number(pickup.lng),
-      delivery_lat: Number(delivery.lat),
-      delivery_lng: Number(delivery.lng),
+      pickup_lat: pickupPoint.lat,
+      pickup_lng: pickupPoint.lng,
+      delivery_lat: deliveryPoint.lat,
+      delivery_lng: deliveryPoint.lng,
       cargo_type: cargoType,
-      weight_kg: body.weight ? Number(body.weight) : null,
-      quantity: body.quantity ? Number(body.quantity) : 1,
+      weight_kg: weightKg,
+      quantity,
       notes: body.notes || '',
-      route_distance_km: body.routeDistance ? Number(body.routeDistance) : null,
+      route_distance_km: routeDistance,
       status: 'new',
     };
 
-    if (inquiry.route_distance_km !== null && inquiry.route_distance_km < 1) {
-      return NextResponse.json({ error: 'Pickup and delivery locations are too close. Minimum route distance is 1 km.' }, { status: 400 });
-    }
+    // Cooldown + active-inquiry cap. The wizard also checks this via
+    // GET /api/inquiries/quota *before* uploading photos, so a rejection here
+    // should be rare (a race, or a direct API caller).
+    const quota = await checkInquiryQuota(supabase, user.id);
 
-    // SPAM AND CAP VALIDATION
-    const { data: recentInquiries, error: recentError } = await supabase
-      .from('inquiries')
-      .select('created_at, status')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-    
-    if (recentError) {
-      throw new Error(recentError.message);
-    }
-
-    if (recentInquiries && recentInquiries.length > 0) {
-      const lastInquiryTime = new Date(recentInquiries[0].created_at).getTime();
-      const now = Date.now();
-      const diffMinutes = (now - lastInquiryTime) / (1000 * 60);
-
-      if (diffMinutes < 5) {
-        return NextResponse.json({ error: 'Please wait at least 5 minutes before submitting another inquiry.' }, { status: 429 });
-      }
-
-      const activeCount = recentInquiries.filter(i => i.status === 'new' || i.status === 'processing').length;
-      if (activeCount >= 3) {
-        return NextResponse.json({ error: 'You have reached the maximum of 3 active inquiries. Please wait for admin approval on your existing requests.' }, { status: 429 });
-      }
+    if (!quota.allowed) {
+      return NextResponse.json({ error: quota.reason }, { status: quota.status });
     }
 
     const { error: inquiryError } = await supabase.from('inquiries').insert(inquiry);
@@ -216,8 +317,7 @@ export async function POST(request) {
       throw new Error(inquiryError.message);
     }
 
-    const images = Array.isArray(body.images) ? body.images : [];
-    const imageRows = images.map((image) => ({
+    const imageRows = uploadedImages.map((image) => ({
       id: crypto.randomUUID(),
       inquiry_reference: reference,
       object_key: image.key || '',
@@ -229,17 +329,39 @@ export async function POST(request) {
       const { error: imageError } = await supabase.from('inquiry_images').insert(imageRows);
 
       if (imageError) {
+        // Compensating delete: without this the inquiry row survived with no
+        // images, counted toward the user's 3-active cap, and blocked their
+        // retry — while they were shown a generic failure.
+        const { error: rollbackError } = await supabase
+          .from('inquiries')
+          .delete()
+          .eq('reference', reference);
+
+        if (rollbackError) {
+          console.error(
+            '[inquiries] image insert failed AND rollback failed for',
+            reference,
+            rollbackError.message,
+          );
+        }
+
         throw new Error(imageError.message);
       }
     }
 
-    await supabase.from('inquiry_status_history').insert({
+    // The status change already committed; a lost history row only leaves a gap
+    // in the customer timeline, so log it rather than failing the submission.
+    const { error: historyError } = await supabase.from('inquiry_status_history').insert({
       id: crypto.randomUUID(),
       inquiry_reference: reference,
       status: 'new',
       notes: 'Inquiry submitted by client.',
       changed_by: user.id,
     });
+
+    if (historyError) {
+      console.error('[inquiries] initial status history insert failed for', reference, historyError.message);
+    }
 
     return NextResponse.json({ inquiry: { ...body, userId: user.id } }, { status: 201 });
   } catch (queryError) {
@@ -264,6 +386,7 @@ export async function PATCH(request) {
   let deliveryAddress;
   let pickup;
   let delivery;
+  let routeDistance;
 
   try {
     body = await request.json();
@@ -272,6 +395,11 @@ export async function PATCH(request) {
     deliveryAddress = requiredString(body.deliveryAddress, 'Delivery address');
     pickup = requiredPoint(body.pickup, 'Pickup');
     delivery = requiredPoint(body.delivery, 'Delivery');
+    routeDistance = optionalRouteDistance(body.routeDistance);
+
+    if (routeDistance !== null && routeDistance < 1) {
+      throw new Error('Pickup and delivery locations are too close. Minimum route distance is 1 km.');
+    }
   } catch (validationError) {
     return NextResponse.json({ error: validationError.message }, { status: 400 });
   }
@@ -306,7 +434,7 @@ export async function PATCH(request) {
     pickup_lng: pickup.lng,
     delivery_lat: delivery.lat,
     delivery_lng: delivery.lng,
-    route_distance_km: body.routeDistance ? Number(body.routeDistance) : null,
+    route_distance_km: routeDistance,
     updated_at: new Date().toISOString(),
     updated_by: user.id,
   };

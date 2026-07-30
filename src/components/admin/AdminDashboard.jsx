@@ -29,6 +29,9 @@ import {
 import { INQUIRY_STATUSES, INQUIRY_STATUS_LABELS } from '../../data/inquiryStatus.js';
 import { deleteAdminInquiry, getAdminInquiries, updateAdminInquiry } from '../../lib/admin/api.js';
 import { getSupabaseBrowserClient } from '../../lib/supabase/client.js';
+import { formatPhilippineDateTime, toPhilippineDateTimeInput } from '../../lib/datetime.js';
+import { useModalBehavior } from '../../lib/hooks/useModalBehavior.js';
+import { fixAge, formatAge, isFixFresh } from '../../lib/gps/tracking.js';
 import AdminRouteTools from './AdminRouteTools.jsx';
 
 const RouteDisplayMap = dynamic(() => import('../RouteDisplayMap.jsx'), {
@@ -57,6 +60,112 @@ const SORT_OPTIONS = [
   { value: 'status', label: 'Status' },
   { value: 'quote', label: 'Highest quote' },
 ];
+
+/** { lat, lng } for the route map, or null when either coordinate is missing. */
+function toRoutePoint(lat, lng) {
+  const latitude = Number(lat);
+  const longitude = Number(lng);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
+
+  return { lat: latitude, lng: longitude };
+}
+
+function createGpsSummary(inquiry) {
+  if (!inquiry) {
+    return {
+      tone: 'offline',
+      label: 'No inquiry selected',
+      helper: 'Open an inquiry to inspect driver tracking.',
+      age: 'No data',
+    };
+  }
+
+  const hasCoordinates = Number.isFinite(Number(inquiry.driver_lat)) && Number.isFinite(Number(inquiry.driver_lng));
+  const fixAt = inquiry.driver_fix_at || inquiry.driver_updated_at;
+  const age = fixAge(fixAt);
+  const fresh = isFixFresh(fixAt);
+
+  if (!inquiry.driver_tracking_token) {
+    return {
+      tone: 'offline',
+      label: 'No driver link',
+      helper: 'Generate a secure driver link before live customer tracking.',
+      age: 'No data',
+    };
+  }
+
+  if (!hasCoordinates) {
+    return {
+      tone: 'waiting',
+      label: 'Waiting for GPS',
+      helper: 'Driver link exists, but the driver has not shared a location yet.',
+      age: 'No data',
+    };
+  }
+
+  if (!inquiry.driver_tracking_active) {
+    return {
+      tone: 'offline',
+      label: 'Driver offline',
+      helper: 'Last known location is saved, but live sharing is currently inactive.',
+      age: age === null ? 'No timestamp' : formatAge(age),
+    };
+  }
+
+  if (!fresh) {
+    return {
+      tone: 'stale',
+      label: 'GPS stale',
+      helper: 'Location is older than the live threshold. Ask driver to reopen tracking link.',
+      age: age === null ? 'No timestamp' : formatAge(age),
+    };
+  }
+
+  return {
+    tone: 'live',
+    label: 'Live GPS',
+    helper: 'Customer tracking can show current driver location.',
+    age: age === null ? 'No timestamp' : formatAge(age),
+  };
+}
+
+function validateAdminForm(form, inquiry) {
+  const errors = [];
+  const quotedPrice = String(form.quotedPrice || '').trim();
+
+  if (quotedPrice) {
+    const value = Number(quotedPrice);
+    if (!Number.isFinite(value) || value < 0) {
+      errors.push('Quoted price must be zero or higher.');
+    }
+  }
+
+  if (form.targetPickupDate && form.targetDeliveryDate) {
+    const pickupDate = new Date(form.targetPickupDate);
+    const deliveryDate = new Date(form.targetDeliveryDate);
+
+    if (Number.isFinite(pickupDate.getTime()) && Number.isFinite(deliveryDate.getTime()) && deliveryDate < pickupDate) {
+      errors.push('Delivery schedule cannot be before pickup schedule.');
+    }
+  }
+
+  if (form.status === 'delivered' && !String(form.adminNotes || '').trim()) {
+    errors.push('Add an internal note before marking an inquiry as delivered.');
+  }
+
+  const hasDriverCoordinates =
+    (form.driverLat && form.driverLng) ||
+    (inquiry?.driver_lat && inquiry?.driver_lng);
+
+  if (form.status === 'in_transit' && !inquiry?.driver_tracking_token && !hasDriverCoordinates) {
+    errors.push('Generate a driver tracking link or set a manual driver location before marking In Transit.');
+  }
+
+  return errors;
+}
 
 function formatDate(value) {
   if (!value) {
@@ -94,19 +203,11 @@ function getStatusClass(status) {
   return `admin-status-chip ${status || 'new'}`;
 }
 
-function toDatetimeLocal(value) {
-  if (!value) {
-    return '';
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return '';
-  }
-
-  return date.toISOString().slice(0, 16);
-}
+// <input type="datetime-local"> is local-time-only. Rendering the stored
+// timestamptz as UTC (toISOString().slice(0,16)) showed an 08:00 PHT pickup as
+// 00:00, and re-saving then wrote that back — shifting every schedule by 8h on
+// each save. The server parses the naive value back with an explicit +08:00.
+const toDatetimeLocal = toPhilippineDateTimeInput;
 
 function createFormState(inquiry) {
   if (!inquiry) {
@@ -193,6 +294,9 @@ function AdminDashboard({ session, profile, setSession }) {
   const [locationQuery, setLocationQuery] = useState('');
   const [locationSuggestions, setLocationSuggestions] = useState([]);
   const [locationSearching, setLocationSearching] = useState(false);
+  // Distinguishes "haven't searched yet" from "searched and found nothing" — a
+  // failed search previously looked identical to no search at all.
+  const [locationSearched, setLocationSearched] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [generatingLink, setGeneratingLink] = useState(false);
   const isAdmin = profile?.role === 'admin';
@@ -200,6 +304,20 @@ function AdminDashboard({ session, profile, setSession }) {
   const knownReferencesRef = useRef(new Set());
   const isDirtyRef = useRef(false);
   const loadedReferenceRef = useRef('');
+  const loadRequestIdRef = useRef(0);
+  const toastTimersRef = useRef([]);
+  const deleteModalRef = useRef(null);
+  const locationModalRef = useRef(null);
+
+  // Scroll lock + Escape + focus for both admin modals. Neither had any of it.
+  useModalBehavior(Boolean(deleteTarget), {
+    onClose: () => setDeleteTarget(null),
+    containerRef: deleteModalRef,
+  });
+  useModalBehavior(showLocationModal, {
+    onClose: () => setShowLocationModal(false),
+    containerRef: locationModalRef,
+  });
 
   const selectedInquiry = useMemo(
     () => payload.inquiries.find((inquiry) => inquiry.reference === selectedReference) || null,
@@ -209,6 +327,18 @@ function AdminDashboard({ session, profile, setSession }) {
   const sortedInquiries = useMemo(
     () => sortInquiries(payload.inquiries || [], sortBy),
     [payload.inquiries, sortBy],
+  );
+
+  // Stable identities for RouteDisplayMap. Inline object literals re-ran its
+  // route effect on every render — the 30s poll and four realtime subscriptions
+  // meant a fresh OSRM fetch and a camera reset several times a minute.
+  const selectedRoutePickup = useMemo(
+    () => toRoutePoint(selectedInquiry?.pickup_lat, selectedInquiry?.pickup_lng),
+    [selectedInquiry?.pickup_lat, selectedInquiry?.pickup_lng],
+  );
+  const selectedRouteDelivery = useMemo(
+    () => toRoutePoint(selectedInquiry?.delivery_lat, selectedInquiry?.delivery_lng),
+    [selectedInquiry?.delivery_lat, selectedInquiry?.delivery_lng],
   );
 
   const pagination = payload.pagination || {
@@ -222,13 +352,21 @@ function AdminDashboard({ session, profile, setSession }) {
   const driverLink = selectedInquiry?.driver_tracking_token && typeof window !== 'undefined'
     ? `${window.location.origin}/driver/track/${selectedInquiry.driver_tracking_token}`
     : '';
+  const gpsSummary = useMemo(() => createGpsSummary(selectedInquiry), [selectedInquiry]);
 
   const addToast = useCallback((type, message) => {
     const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     setToasts((current) => [...current, { id, type, message }].slice(-4));
-    window.setTimeout(() => {
+    const timer = window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
     }, 4200);
+    toastTimersRef.current.push(timer);
+  }, []);
+
+  // Auto-dismiss timers used to outlive the component.
+  useEffect(() => () => {
+    toastTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    toastTimersRef.current = [];
   }, []);
 
   const loadDashboard = useCallback(async ({ quiet = false } = {}) => {
@@ -241,6 +379,11 @@ function AdminDashboard({ session, profile, setSession }) {
       setStatus('Loading admin inquiries...');
     }
 
+    // Requests are not cancellable through getAdminInquiries, so ignore any
+    // response that a newer request has already superseded. Typing in the search
+    // box could otherwise land an older result last.
+    const requestId = ++loadRequestIdRef.current;
+
     try {
       const data = await getAdminInquiries(session.access_token, {
         status: statusFilter,
@@ -248,6 +391,9 @@ function AdminDashboard({ session, profile, setSession }) {
         page,
         pageSize: ADMIN_PAGE_SIZE,
       });
+
+      if (requestId !== loadRequestIdRef.current) return;
+
       const nextReferences = new Set((data.inquiries || []).map((inquiry) => inquiry.reference));
       const previousReferences = knownReferencesRef.current;
 
@@ -275,10 +421,11 @@ function AdminDashboard({ session, profile, setSession }) {
         setStatus('');
       }
     } catch (loadError) {
+      if (requestId !== loadRequestIdRef.current) return;
       setStatus(loadError.message);
       addToast('error', loadError.message || 'Could not load admin inquiries.');
     } finally {
-      setIsLoading(false);
+      if (requestId === loadRequestIdRef.current) setIsLoading(false);
     }
   }, [addToast, isAdmin, page, search, session?.access_token, statusFilter]);
 
@@ -365,19 +512,19 @@ function AdminDashboard({ session, profile, setSession }) {
     const q = locationQuery;
 
     if (q.trim().length < 3 || selectedLocation?.label === q) {
-      if (!selectedLocation && locationSuggestions.length > 0) {
-        setLocationSuggestions([]);
-      }
+      setLocationSuggestions([]);
+      setLocationSearched(false);
       return undefined;
     }
 
     setLocationSearching(true);
+    const controller = new AbortController();
 
     const timer = window.setTimeout(async () => {
       try {
         const res = await fetch(
           `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(`${q}, Philippines`)}&format=json&limit=6&addressdetails=1`,
-          { headers: { 'Accept-Language': 'en' } },
+          { headers: { 'Accept-Language': 'en' }, signal: controller.signal },
         );
         if (res.ok) {
           const data = await res.json();
@@ -385,15 +532,24 @@ function AdminDashboard({ session, profile, setSession }) {
         } else {
           setLocationSuggestions([]);
         }
-      } catch {
+        setLocationSearched(true);
+      } catch (searchError) {
+        if (searchError.name === 'AbortError') return;
         setLocationSuggestions([]);
+        setLocationSearched(true);
       } finally {
         setLocationSearching(false);
       }
     }, 800);
 
-    return () => window.clearTimeout(timer);
-  }, [locationQuery, locationSuggestions.length, selectedLocation]);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+    // locationSuggestions.length must NOT be a dependency: the body sets it, so
+    // 0 -> 6 re-triggered the effect and fired a second identical Nominatim
+    // request 800ms later, against their usage policy.
+  }, [locationQuery, selectedLocation]);
 
   const updateForm = (field, value) => {
     isDirtyRef.current = true;
@@ -417,6 +573,14 @@ function AdminDashboard({ session, profile, setSession }) {
     }
 
     if (!selectedInquiry || !session?.access_token) {
+      return;
+    }
+
+    const validationErrors = validateAdminForm(form, selectedInquiry);
+    if (validationErrors.length > 0) {
+      const message = validationErrors[0];
+      setStatus(message);
+      addToast('error', message);
       return;
     }
 
@@ -514,7 +678,8 @@ function AdminDashboard({ session, profile, setSession }) {
   const generateDriverLink = async (reference) => {
     try {
       setGeneratingLink(true);
-      const res = await fetch(`/api/admin/inquiries/${reference}/driver-link`, {
+      // Encoded, matching the sibling calls in lib/admin/api.js.
+      const res = await fetch(`/api/admin/inquiries/${encodeURIComponent(reference)}/driver-link`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
@@ -533,7 +698,13 @@ function AdminDashboard({ session, profile, setSession }) {
       setPayload((current) => ({
         ...current,
         inquiries: current.inquiries.map((inquiry) =>
-          inquiry.reference === reference ? { ...inquiry, driver_tracking_token: data.token } : inquiry
+          inquiry.reference === reference
+            ? {
+                ...inquiry,
+                driver_tracking_token: data.token,
+                driver_token_expires_at: data.expiresAt,
+              }
+            : inquiry
         ),
       }));
       addToast('success', 'Driver tracking link generated.');
@@ -733,15 +904,21 @@ function AdminDashboard({ session, profile, setSession }) {
 
             <div className="admin-table-wrap">
               <table className="admin-inquiries-table">
+                <caption>
+                  Inquiries{statusFilter !== 'all' ? ` filtered by status: ${statusFilter}` : ''}
+                  {search.trim() ? ` matching “${search.trim()}”` : ''}
+                </caption>
                 <thead>
                   <tr>
-                    <th>Date</th>
-                    <th>Customer</th>
-                    <th>Subject / Route</th>
-                    <th>Status</th>
-                    <th>Quote</th>
-                    <th>Assigned</th>
-                    <th>Actions</th>
+                    {/* scope="col" so screen readers announce the column when
+                        reading a cell; the table had no caption either. */}
+                    <th scope="col">Date</th>
+                    <th scope="col">Customer</th>
+                    <th scope="col">Subject / Route</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Quote</th>
+                    <th scope="col">Assigned</th>
+                    <th scope="col">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -846,7 +1023,18 @@ function AdminDashboard({ session, profile, setSession }) {
         />
       )}
 
-      <aside className={`admin-slide-panel ${selectedInquiry ? 'open' : ''}`} aria-label="Inquiry details">
+      {/* Always mounted for the slide transition, so it must be hidden from
+          assistive tech and taken out of the tab order when closed — otherwise
+          screen readers and Tab reach an off-screen panel. role="dialog" and
+          aria-modal only apply while it is actually open. */}
+      <aside
+        className={`admin-slide-panel ${selectedInquiry ? 'open' : ''}`}
+        aria-label="Inquiry details"
+        aria-hidden={selectedInquiry ? undefined : 'true'}
+        inert={selectedInquiry ? undefined : ''}
+        role={selectedInquiry ? 'dialog' : undefined}
+        aria-modal={selectedInquiry ? 'true' : undefined}
+      >
         {selectedInquiry && (
           <>
             <div className="admin-slide-header">
@@ -965,9 +1153,25 @@ function AdminDashboard({ session, profile, setSession }) {
                   <LinkIcon size={18} />
                   <h4>Driver Tracking</h4>
                 </div>
+                <div className={`admin-gps-summary ${gpsSummary.tone}`}>
+                  <div>
+                    <span>GPS status</span>
+                    <strong>{gpsSummary.label}</strong>
+                  </div>
+                  <div>
+                    <span>Last fix</span>
+                    <strong>{gpsSummary.age}</strong>
+                  </div>
+                  <p>{gpsSummary.helper}</p>
+                </div>
                 {driverLink ? (
                   <>
-                    <p className="admin-helper-text">Send this secure link to the driver to stream live GPS coordinates.</p>
+                    <p className="admin-helper-text">
+                      Send this secure link to the driver to stream live GPS coordinates.
+                      {selectedInquiry?.driver_token_expires_at
+                        ? ` Expires ${formatPhilippineDateTime(selectedInquiry.driver_token_expires_at)}.`
+                        : ''}
+                    </p>
                     <div className="admin-copy-row">
                       <input type="text" readOnly value={driverLink} />
                       <button type="button" onClick={() => copyToClipboard(driverLink)}>
@@ -997,8 +1201,8 @@ function AdminDashboard({ session, profile, setSession }) {
                     <h4>Live Route Map</h4>
                   </div>
                   <RouteDisplayMap
-                    pickup={{ lat: Number(selectedInquiry.pickup_lat), lng: Number(selectedInquiry.pickup_lng) }}
-                    delivery={{ lat: Number(selectedInquiry.delivery_lat), lng: Number(selectedInquiry.delivery_lng) }}
+                    pickup={selectedRoutePickup}
+                    delivery={selectedRouteDelivery}
                     status={form.status}
                     driverLat={form.driverLat || selectedInquiry.driver_lat}
                     driverLng={form.driverLng || selectedInquiry.driver_lng}
@@ -1007,9 +1211,10 @@ function AdminDashboard({ session, profile, setSession }) {
                     driverSpeedKph={selectedInquiry.driver_speed_kph}
                     driverHeading={selectedInquiry.driver_heading}
                     driverUpdatedAt={selectedInquiry.driver_updated_at}
+                    driverFixAt={selectedInquiry.driver_fix_at}
                     driverTrackingActive={selectedInquiry.driver_tracking_active}
                     inquiryReference={selectedInquiry.reference}
-                    height="220px"
+                    height="clamp(200px, 30vh, 320px)"
                   />
                 </section>
               )}
@@ -1072,7 +1277,14 @@ function AdminDashboard({ session, profile, setSession }) {
 
       {deleteTarget && (
         <div className="admin-modal-backdrop" role="presentation">
-          <div className="admin-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="admin-delete-title">
+          <div
+            ref={deleteModalRef}
+            tabIndex={-1}
+            className="admin-confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-delete-title"
+          >
             <div className="admin-confirm-icon">
               <Trash2 size={22} />
             </div>
@@ -1092,7 +1304,14 @@ function AdminDashboard({ session, profile, setSession }) {
 
       {showLocationModal && (
         <div className="admin-modal-backdrop" role="presentation">
-          <div className="admin-location-modal" role="dialog" aria-modal="true" aria-labelledby="admin-location-title">
+          <div
+            ref={locationModalRef}
+            tabIndex={-1}
+            className="admin-location-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-location-title"
+          >
             <div className="admin-modal-header">
               <div>
                 <span><MapPin size={20} /></span>
@@ -1142,6 +1361,12 @@ function AdminDashboard({ session, profile, setSession }) {
                   </button>
                 ))}
               </div>
+            )}
+
+            {locationSearched && !locationSearching && locationSuggestions.length === 0 && !selectedLocation && (
+              <p className="admin-location-empty">
+                No places matched “{locationQuery.trim()}”. Try a city or municipality name.
+              </p>
             )}
 
             {selectedLocation && (

@@ -10,8 +10,31 @@
   --green-dark: #0f7a39;
   --soft-green: #eaf8ef;
   --orange: #f97316;
+  /* Used by both Logout buttons in App.jsx, which previously referenced an
+     undefined var(--red) and silently inherited their colour. */
+  --red: #dc2626;
+  --red-soft: #fef2f2;
+  --amber: #f59e0b;
+  --amber-soft: #fef3c7;
+  --amber-ink: #92400e;
   --font-main: 'Outfit', Arial, sans-serif;
+
+  /* Stacking order, documented in one place. Previously eight uncoordinated
+     layers existed and two pairs tied (slide panel vs bottom nav at 1000, toast
+     vs success modal at 9999), resolved only by DOM order. */
+  --z-base: 1;
+  --z-map-control: 400;
+  --z-sticky: 600;
+  --z-floating-action: 700;
+  --z-header: 900;
+  --z-bottom-nav: 1000;
+  --z-panel-backdrop: 1100;
+  --z-panel: 1200;
+  --z-modal-backdrop: 2000;
+  --z-modal: 2100;
+  --z-toast: 3000;
 }
+
 
 * {
   box-sizing: border-box;

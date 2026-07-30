@@ -1,15 +1,23 @@
 "use client";
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { LocateFixed } from 'lucide-react';
 import { getSupabaseBrowserClient } from '../lib/supabase/client.js';
+import { escapeHtml } from '../lib/security/sanitize.js';
+import { fixAge, formatAge, isFixFresh } from '../lib/gps/tracking.js';
 
+// How often the "Live / Stale" chip re-evaluates. Without this the chip is
+// computed during render only, so it stays green indefinitely after the driver's
+// last update until some unrelated re-render happens.
+const FRESHNESS_TICK_MS = 10000;
+// Duration of the truck marker glide between fixes.
+const MARKER_ANIMATION_MS = 600;
 
 function createMarkerIcon(color, size = 18) {
   return L.divIcon({
     className: '',
-    html: `<div style="width:${size}px;height:${size}px;background:${color};border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>`,
+    html: `<div style="width:${size}px;height:${size}px;background:${escapeHtml(color)};border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   });
@@ -29,7 +37,7 @@ function createTruckIcon(isLive = false) {
   });
 }
 
-async function fetchOsrmRoute(p1, p2) {
+async function fetchOsrmRoute(p1, p2, signal) {
   try {
     const params = new URLSearchParams({
       pickupLat: String(p1.lat),
@@ -37,14 +45,14 @@ async function fetchOsrmRoute(p1, p2) {
       deliveryLat: String(p2.lat),
       deliveryLng: String(p2.lng),
     });
-    const res = await fetch(`/api/routes/directions?${params.toString()}`);
+    const res = await fetch(`/api/routes/directions?${params.toString()}`, { signal });
     if (!res.ok) return null;
     const data = await res.json();
     if (data.route?.coordinates?.length > 0) {
       return data.route.coordinates;
     }
   } catch {
-    // silently fall back to straight line
+    // Aborted, or OSRM unavailable — fall back to a straight line.
   }
   return null;
 }
@@ -54,6 +62,19 @@ function formatGpsTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'No live GPS yet';
   return date.toLocaleString();
+}
+
+/** Numeric coordinate or null. Never treats a legitimate 0 as absent. */
+function toCoord(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+/** ms timestamp for ordering comparisons, or 0 when unknown. */
+function toTime(value) {
+  if (!value) return 0;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function RouteDisplayMap({
@@ -67,220 +88,387 @@ function RouteDisplayMap({
   driverSpeedKph,
   driverHeading,
   driverUpdatedAt,
+  driverFixAt,
   driverTrackingActive,
   inquiryReference,
-  height = '400px',
+  height,
 }) {
   const mapElementRef = useRef(null);
   const mapRef = useRef(null);
   const truckMarkerRef = useRef(null);
+  const accuracyCircleRef = useRef(null);
   const routeLayersRef = useRef([]);
   const routePointsRef = useRef(null);
+  const animationRef = useRef(null);
+  const hasFittedRef = useRef(false);
 
-  // Local state to hold live driver coords if updated via realtime
-  const [liveDriverLat, setLiveDriverLat] = useState(driverLat);
-  const [liveDriverLng, setLiveDriverLng] = useState(driverLng);
-  const [liveDriverMeta, setLiveDriverMeta] = useState({
+  // Single piece of live driver state so an update is always internally
+  // consistent (position and its own timestamp move together).
+  const [live, setLive] = useState(() => ({
+    lat: toCoord(driverLat),
+    lng: toCoord(driverLng),
     location: driverLocation,
     accuracy: driverAccuracy,
     speed: driverSpeedKph,
     heading: driverHeading,
     updatedAt: driverUpdatedAt,
+    fixAt: driverFixAt || driverUpdatedAt,
     active: driverTrackingActive,
-  });
+  }));
 
   const [isAutoTracking, setIsAutoTracking] = useState(true);
+  const [realtimeStatus, setRealtimeStatus] = useState('connecting');
+  const [, setFreshnessTick] = useState(0);
 
-  // Sync props to local state initially or when they change externally
+  const pickupLat = toCoord(pickup?.lat);
+  const pickupLng = toCoord(pickup?.lng);
+  const deliveryLat = toCoord(delivery?.lat);
+  const deliveryLng = toCoord(delivery?.lng);
+  const hasRoute =
+    pickupLat !== null && pickupLng !== null && deliveryLat !== null && deliveryLng !== null;
+
+  // A newer position must never be replaced by an older one. Both the 30s parent
+  // poll and the realtime channel feed this, and the poll can return a snapshot
+  // older than what realtime already delivered.
+  const applyUpdate = useCallback((next) => {
+    setLive((current) => {
+      if (toTime(next.fixAt) < toTime(current.fixAt)) return current;
+      return { ...current, ...next };
+    });
+  }, []);
+
+  // Sync props (initial load + parent poll) into live state.
   useEffect(() => {
-    setLiveDriverLat(driverLat);
-    setLiveDriverLng(driverLng);
-    setLiveDriverMeta({
+    applyUpdate({
+      lat: toCoord(driverLat),
+      lng: toCoord(driverLng),
       location: driverLocation,
       accuracy: driverAccuracy,
       speed: driverSpeedKph,
       heading: driverHeading,
       updatedAt: driverUpdatedAt,
+      fixAt: driverFixAt || driverUpdatedAt,
       active: driverTrackingActive,
     });
-  }, [driverLat, driverLng, driverLocation, driverAccuracy, driverSpeedKph, driverHeading, driverUpdatedAt, driverTrackingActive]);
+  }, [
+    applyUpdate,
+    driverLat,
+    driverLng,
+    driverLocation,
+    driverAccuracy,
+    driverSpeedKph,
+    driverHeading,
+    driverUpdatedAt,
+    driverFixAt,
+    driverTrackingActive,
+  ]);
 
-  // Supabase Realtime Subscription
+  // Realtime subscription.
   useEffect(() => {
-    if (!inquiryReference) return;
+    if (!inquiryReference) return undefined;
     const supabase = getSupabaseBrowserClient();
-    if (!supabase) return;
+    if (!supabase) {
+      setRealtimeStatus('unavailable');
+      return undefined;
+    }
 
-    const channel = supabase.channel(`public:inquiries:ref=${inquiryReference}`)
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'inquiries',
-        filter: `reference=eq.${inquiryReference}`
-      }, (payload) => {
-        if (payload.new.driver_lat && payload.new.driver_lng) {
-          setLiveDriverLat(payload.new.driver_lat);
-          setLiveDriverLng(payload.new.driver_lng);
-          setLiveDriverMeta({
-            location: payload.new.driver_location,
-            accuracy: payload.new.driver_accuracy_m,
-            speed: payload.new.driver_speed_kph,
-            heading: payload.new.driver_heading,
-            updatedAt: payload.new.driver_updated_at,
-            active: payload.new.driver_tracking_active,
-          });
-        }
-      })
-      .subscribe();
+    const channel = supabase
+      .channel(`public:inquiries:ref=${inquiryReference}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'inquiries',
+          filter: `reference=eq.${inquiryReference}`,
+        },
+        (payload) => {
+          const row = payload.new || {};
+          const lat = toCoord(row.driver_lat);
+          const lng = toCoord(row.driver_lng);
+
+          const next = {
+            location: row.driver_location,
+            accuracy: row.driver_accuracy_m,
+            speed: row.driver_speed_kph,
+            heading: row.driver_heading,
+            updatedAt: row.driver_updated_at,
+            fixAt: row.driver_fix_at || row.driver_updated_at,
+            active: row.driver_tracking_active,
+          };
+
+          // A "stop tracking" update legitimately carries no coordinates. Gating
+          // the whole handler on coordinates meant the viewer never learned that
+          // tracking had ended.
+          if (lat !== null && lng !== null) {
+            next.lat = lat;
+            next.lng = lng;
+          }
+
+          applyUpdate(next);
+        },
+      )
+      .subscribe((subscriptionStatus) => {
+        if (subscriptionStatus === 'SUBSCRIBED') setRealtimeStatus('live');
+        else if (subscriptionStatus === 'CHANNEL_ERROR' || subscriptionStatus === 'TIMED_OUT') {
+          setRealtimeStatus('reconnecting');
+        } else if (subscriptionStatus === 'CLOSED') setRealtimeStatus('closed');
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [inquiryReference]);
+  }, [applyUpdate, inquiryReference]);
 
-  // 1. Map Initialization and Static Route
+  // Re-evaluate freshness on a timer so the chip ages without user interaction.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    const id = window.setInterval(() => setFreshnessTick((n) => n + 1), FRESHNESS_TICK_MS);
+    return () => window.clearInterval(id);
+  }, []);
+
+  // ------------------------------------------------------------------
+  // 1. Create the Leaflet instance exactly once
+  // ------------------------------------------------------------------
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    if (mapRef.current || !mapElementRef.current) return undefined;
+
+    const map = L.map(mapElementRef.current, {
+      zoomControl: true,
+      dragging: true,
+      touchZoom: true,
+      doubleClickZoom: true,
+      scrollWheelZoom: false,
+      attributionControl: false,
+    });
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      maxZoom: 18,
+    }).addTo(map);
+
+    // Any manual interaction detaches the follow camera.
+    const detach = () => setIsAutoTracking(false);
+    map.on('dragstart', detach);
+    map.on('wheel', detach);
+    map.on('touchstart', detach);
+    map.on('zoomstart', detach);
+    map.on('keypress', detach);
+
+    mapRef.current = map;
+
+    return () => {
+      window.cancelAnimationFrame(animationRef.current);
+      map.remove();
+      // Every layer belonged to the map just destroyed. Leaving these populated
+      // meant a StrictMode remount called setLatLng on an orphaned marker.
+      mapRef.current = null;
+      truckMarkerRef.current = null;
+      accuracyCircleRef.current = null;
+      routeLayersRef.current = [];
+      routePointsRef.current = null;
+      hasFittedRef.current = false;
+    };
+  }, []);
+
+  // ------------------------------------------------------------------
+  // 2. Draw the static route — only when the endpoints actually change
+  // ------------------------------------------------------------------
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !hasRoute) return undefined;
+
+    const controller = new AbortController();
     let isMounted = true;
 
-    if (!mapRef.current && mapElementRef.current) {
-      mapRef.current = L.map(mapElementRef.current, {
-        zoomControl: true,
-        dragging: true,
-        touchZoom: true,
-        doubleClickZoom: true,
-        scrollWheelZoom: false,
-        attributionControl: false,
-      });
-
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        maxZoom: 18,
-      }).addTo(mapRef.current);
-
-      // Disable auto-tracking on manual map interaction
-      mapRef.current.on('dragstart', () => setIsAutoTracking(false));
-      mapRef.current.on('wheel', () => setIsAutoTracking(false));
-      mapRef.current.on('touchstart', () => setIsAutoTracking(false));
-    }
-
-    const map = mapRef.current;
-
-    // Clear previous static route layers
-    routeLayersRef.current.forEach(layer => layer.remove());
+    routeLayersRef.current.forEach((layer) => layer.remove());
     routeLayersRef.current = [];
 
-    if (!pickup?.lat || !pickup?.lng || !delivery?.lat || !delivery?.lng) return;
-
-    const pLatLng = [pickup.lat, pickup.lng];
-    const dLatLng = [delivery.lat, delivery.lng];
+    const pLatLng = [pickupLat, pickupLng];
+    const dLatLng = [deliveryLat, deliveryLng];
 
     const pMarker = L.marker(pLatLng, { icon: createMarkerIcon('#16a34a', 20) })
-      .bindTooltip('Pickup', { permanent: false, direction: 'top' })
+      .bindTooltip('Pickup', { direction: 'top' })
       .addTo(map);
     const dMarker = L.marker(dLatLng, { icon: createMarkerIcon('#ef4444', 20) })
-      .bindTooltip('Delivery', { permanent: false, direction: 'top' })
+      .bindTooltip('Delivery', { direction: 'top' })
       .addTo(map);
-      
+
     routeLayersRef.current.push(pMarker, dMarker);
 
-    // Initial bounding
-    let initialPoints = [pLatLng, dLatLng];
-    map.fitBounds(L.latLngBounds(initialPoints), { padding: [50, 50] });
+    // Fit once. Re-fitting on every realtime tick used to yank the camera away
+    // from wherever the user had panned.
+    if (!hasFittedRef.current) {
+      map.fitBounds(L.latLngBounds([pLatLng, dLatLng]), { padding: [50, 50] });
+      hasFittedRef.current = true;
+    }
 
-    async function fetchAndDrawRoute() {
-      const routePoints = await fetchOsrmRoute(pickup, delivery);
-      if (!isMounted) return;
-      
+    (async () => {
+      const routePoints = await fetchOsrmRoute(
+        { lat: pickupLat, lng: pickupLng },
+        { lat: deliveryLat, lng: deliveryLng },
+        controller.signal,
+      );
+      if (!isMounted || !mapRef.current) return;
+
       routePointsRef.current = routePoints;
 
-      let polyline;
-      if (routePoints) {
-        polyline = L.polyline(routePoints, {
-          color: '#16a34a',
-          weight: 6,
-          opacity: 0.8,
-        }).addTo(map);
-      } else {
-        polyline = L.polyline([pLatLng, dLatLng], {
-          color: '#16a34a',
-          weight: 4,
-          dashArray: '8, 8',
-          opacity: 0.6,
-        }).addTo(map);
-      }
+      const polyline = routePoints
+        ? L.polyline(routePoints, { color: '#16a34a', weight: 6, opacity: 0.8 })
+        : L.polyline([pLatLng, dLatLng], {
+            color: '#16a34a',
+            weight: 4,
+            dashArray: '8, 8',
+            opacity: 0.6,
+          });
+
+      polyline.addTo(map);
       routeLayersRef.current.push(polyline);
-    }
-    
-    fetchAndDrawRoute();
+    })();
 
     return () => {
       isMounted = false;
+      controller.abort();
     };
-  }, [pickup, delivery]); // ONLY re-run if pickup or delivery changes
+    // Primitive deps only. Depending on the `pickup`/`delivery` objects re-ran
+    // this on every parent render, re-fetching OSRM on each 30s poll.
+  }, [hasRoute, pickupLat, pickupLng, deliveryLat, deliveryLng]);
 
-  // 2. Truck Marker Updates & Auto-Tracking
+  // ------------------------------------------------------------------
+  // 3. Truck marker, accuracy circle, follow camera
+  // ------------------------------------------------------------------
+  const driverCoordValid = live.lat !== null && live.lng !== null;
+  const driverAccuracyM = Number(live.accuracy);
+
   useEffect(() => {
-    if (!mapRef.current) return;
-    if (!pickup?.lat || !delivery?.lat) return;
-    
     const map = mapRef.current;
-    let truckLatLng = null;
+    if (!map || !hasRoute) return;
 
-    const driverCoordValid = liveDriverLat && liveDriverLng && isFinite(Number(liveDriverLat)) && isFinite(Number(liveDriverLng));
+    let truckLatLng;
 
     if (driverCoordValid) {
-      truckLatLng = [Number(liveDriverLat), Number(liveDriverLng)];
+      truckLatLng = [live.lat, live.lng];
     } else {
+      // No GPS: estimate a position along the route from the status.
       let progress = 0;
       if (status === 'picked_up' || status === 'for_pickup') progress = 0.1;
       else if (status === 'in_transit') progress = 0.5;
       else if (status === 'delivered') progress = 1.0;
 
-      if (routePointsRef.current && routePointsRef.current.length > 1) {
-        const idx = Math.floor(progress * (routePointsRef.current.length - 1));
-        truckLatLng = routePointsRef.current[Math.min(idx, routePointsRef.current.length - 1)];
+      const points = routePointsRef.current;
+      if (points && points.length > 1) {
+        const idx = Math.floor(progress * (points.length - 1));
+        truckLatLng = points[Math.min(idx, points.length - 1)];
       } else {
         truckLatLng = [
-          pickup.lat + (delivery.lat - pickup.lat) * progress,
-          pickup.lng + (delivery.lng - pickup.lng) * progress,
+          pickupLat + (deliveryLat - pickupLat) * progress,
+          pickupLng + (deliveryLng - pickupLng) * progress,
         ];
       }
     }
 
-    if (truckLatLng) {
-      if (!truckMarkerRef.current) {
-        truckMarkerRef.current = L.marker(truckLatLng, { icon: createTruckIcon(Boolean(liveDriverMeta.active)), zIndexOffset: 1000 })
-          .bindTooltip(liveDriverMeta.location ? `Truck: ${liveDriverMeta.location}` : 'Truck Location', { permanent: false, direction: 'top' })
-          .addTo(map);
-      } else {
-        truckMarkerRef.current.setLatLng(truckLatLng);
-        truckMarkerRef.current.setIcon(createTruckIcon(Boolean(liveDriverMeta.active))); // Update icon state if active changed
-      }
+    if (!truckLatLng) return;
 
-      // Auto-tracking camera logic
-      if (isAutoTracking) {
-        if (driverCoordValid) {
-          // If we have live GPS, zoom in close to track the truck
-          map.setView(truckLatLng, 15, { animate: true });
-        } else {
-          // If estimating, just make sure all points are in view
-          const allPoints = [[pickup.lat, pickup.lng], [delivery.lat, delivery.lng], truckLatLng];
-          map.fitBounds(L.latLngBounds(allPoints), { padding: [50, 50] });
-        }
+    const isLive = Boolean(live.active) && isFixFresh(live.fixAt);
+    const label = live.location ? `Truck: ${live.location}` : 'Truck Location';
+
+    if (!truckMarkerRef.current) {
+      truckMarkerRef.current = L.marker(truckLatLng, {
+        icon: createTruckIcon(isLive),
+        zIndexOffset: 1000,
+      }).addTo(map);
+      // Text node, not a string: Leaflet assigns string content via innerHTML,
+      // and driver_location originates from an unauthenticated endpoint.
+      truckMarkerRef.current.bindTooltip(document.createTextNode(label), { direction: 'top' });
+    } else {
+      const marker = truckMarkerRef.current;
+      marker.setIcon(createTruckIcon(isLive));
+      marker.setTooltipContent(document.createTextNode(label));
+
+      // Glide to the new position instead of teleporting.
+      const from = marker.getLatLng();
+      const to = L.latLng(truckLatLng);
+      window.cancelAnimationFrame(animationRef.current);
+
+      if (from.distanceTo(to) > 1) {
+        const start = performance.now();
+        const step = (now) => {
+          const t = Math.min(1, (now - start) / MARKER_ANIMATION_MS);
+          // easeOutQuad
+          const eased = 1 - (1 - t) * (1 - t);
+          marker.setLatLng([
+            from.lat + (to.lat - from.lat) * eased,
+            from.lng + (to.lng - from.lng) * eased,
+          ]);
+          if (t < 1 && mapRef.current) {
+            animationRef.current = window.requestAnimationFrame(step);
+          }
+        };
+        animationRef.current = window.requestAnimationFrame(step);
+      } else {
+        marker.setLatLng(to);
       }
     }
-  }, [liveDriverLat, liveDriverLng, liveDriverMeta, status, pickup, delivery, isAutoTracking]);
 
-  useEffect(() => {
-    return () => {
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
+    // Accuracy circle: a +/-1500 m fix should not look like a precise pin.
+    if (driverCoordValid && Number.isFinite(driverAccuracyM) && driverAccuracyM > 0) {
+      if (!accuracyCircleRef.current) {
+        accuracyCircleRef.current = L.circle(truckLatLng, {
+          radius: driverAccuracyM,
+          color: '#16a34a',
+          weight: 1,
+          opacity: 0.35,
+          fillColor: '#16a34a',
+          fillOpacity: 0.1,
+          interactive: false,
+        }).addTo(map);
+      } else {
+        accuracyCircleRef.current.setLatLng(truckLatLng);
+        accuracyCircleRef.current.setRadius(driverAccuracyM);
       }
-    };
-  }, []);
+    } else if (accuracyCircleRef.current) {
+      accuracyCircleRef.current.remove();
+      accuracyCircleRef.current = null;
+    }
 
-  if (!pickup || !delivery) return null;
+    if (isAutoTracking) {
+      if (driverCoordValid) {
+        // panTo, not setView(_, 15): hard-locking the zoom meant the user could
+        // never follow the truck while zoomed out.
+        map.panTo(truckLatLng, { animate: true });
+      } else if (!hasFittedRef.current) {
+        map.fitBounds(
+          L.latLngBounds([[pickupLat, pickupLng], [deliveryLat, deliveryLng], truckLatLng]),
+          { padding: [50, 50] },
+        );
+      }
+    }
+  }, [
+    hasRoute,
+    driverCoordValid,
+    driverAccuracyM,
+    live.lat,
+    live.lng,
+    live.active,
+    live.fixAt,
+    live.location,
+    status,
+    pickupLat,
+    pickupLng,
+    deliveryLat,
+    deliveryLng,
+    isAutoTracking,
+  ]);
+
+  const handleTrackClick = () => {
+    setIsAutoTracking(true);
+    if (mapRef.current && driverCoordValid) {
+      mapRef.current.panTo([live.lat, live.lng], { animate: true });
+    }
+  };
+
+  // Nothing to draw without both endpoints. Number() of a missing coordinate is
+  // NaN, which used to slip past a truthiness guard and render an empty box.
+  if (!hasRoute) return null;
 
   const statusLabel =
     status === 'delivered' ? 'Delivered ✅' :
@@ -288,66 +476,59 @@ function RouteDisplayMap({
     status === 'picked_up' ? 'Picked Up 📦' :
     'Pending Route';
 
-  const hasLiveGps = liveDriverLat && liveDriverLng;
-  const gpsFresh = liveDriverMeta.updatedAt
-    ? Date.now() - new Date(liveDriverMeta.updatedAt).getTime() < 120000
-    : false;
+  const age = fixAge(live.fixAt);
+  const gpsFresh = isFixFresh(live.fixAt);
+  const showingLive = driverCoordValid && gpsFresh && Boolean(live.active);
 
-  const handleTrackClick = () => {
-    setIsAutoTracking(true);
-    if (mapRef.current && hasLiveGps) {
-      mapRef.current.setView([Number(liveDriverLat), Number(liveDriverLng)], 15, { animate: true });
+  let chipClass = 'gps-status-chip';
+  let chipLabel = statusLabel;
+
+  if (driverCoordValid && age !== null) {
+    if (showingLive) {
+      chipClass = 'gps-status-chip live';
+      chipLabel = `Live · ${formatAge(age)}`;
+    } else {
+      chipClass = 'gps-status-chip stale';
+      chipLabel = live.active ? `Stale · ${formatAge(age)}` : `Offline · ${formatAge(age)}`;
     }
-  };
+  }
+
+  const mapHeight = height || 'clamp(220px, 42vh, 420px)';
 
   return (
     <div className="route-live-map">
       <div className="route-live-map-head">
         <div>
           <span>Live route progress</span>
-          <strong>{hasLiveGps ? 'Driver GPS visible' : 'Estimated route position'}</strong>
+          <strong>{driverCoordValid ? 'Driver GPS visible' : 'Estimated route position'}</strong>
         </div>
-        <span className={gpsFresh && liveDriverMeta.active ? 'gps-status-chip live' : 'gps-status-chip'}>
-          {gpsFresh && liveDriverMeta.active ? 'Live GPS' : statusLabel}
-        </span>
+        <div className="route-live-map-chips">
+          {realtimeStatus === 'reconnecting' && (
+            <span className="gps-status-chip reconnecting">Reconnecting…</span>
+          )}
+          <span className={chipClass}>{chipLabel}</span>
+        </div>
       </div>
       <div className="route-gps-meta">
-        <span>Last sync: <strong>{formatGpsTime(liveDriverMeta.updatedAt)}</strong></span>
-        <span>Accuracy: <strong>{Number.isFinite(Number(liveDriverMeta.accuracy)) ? `${Math.round(Number(liveDriverMeta.accuracy))} m` : 'N/A'}</strong></span>
-        <span>Speed: <strong>{Number.isFinite(Number(liveDriverMeta.speed)) ? `${Math.round(Number(liveDriverMeta.speed))} kph` : 'N/A'}</strong></span>
-        <span>Heading: <strong>{Number.isFinite(Number(liveDriverMeta.heading)) ? `${Math.round(Number(liveDriverMeta.heading))} deg` : 'N/A'}</strong></span>
+        <span>Last sync: <strong>{formatGpsTime(live.updatedAt)}</strong></span>
+        <span>Accuracy: <strong>{Number.isFinite(driverAccuracyM) ? `${Math.round(driverAccuracyM)} m` : 'N/A'}</strong></span>
+        <span>Speed: <strong>{Number.isFinite(Number(live.speed)) ? `${Math.round(Number(live.speed))} kph` : 'N/A'}</strong></span>
+        <span>Heading: <strong>{Number.isFinite(Number(live.heading)) ? `${Math.round(Number(live.heading))} deg` : 'N/A'}</strong></span>
       </div>
-      {liveDriverMeta.location && <p className="route-driver-location">Driver last reported at <strong>{liveDriverMeta.location}</strong></p>}
-      
-      <div style={{ position: 'relative', width: '100%', height }}>
-        <div
-          ref={mapElementRef}
-          className="route-live-map-frame"
-          style={{ height: '100%', width: '100%', borderRadius: '12px', border: '1px solid var(--line)' }}
-        />
-        
-        {hasLiveGps && (
+      {live.location && (
+        <p className="route-driver-location">
+          Driver last reported at <strong>{live.location}</strong>
+        </p>
+      )}
+
+      <div className="route-live-map-shell" style={{ height: mapHeight }}>
+        <div ref={mapElementRef} className="route-live-map-frame" />
+
+        {driverCoordValid && (
           <button
             type="button"
+            className={isAutoTracking ? 'route-follow-btn is-following' : 'route-follow-btn'}
             onClick={handleTrackClick}
-            style={{
-              position: 'absolute',
-              bottom: '24px',
-              right: '24px',
-              zIndex: 1000,
-              backgroundColor: isAutoTracking ? '#16a34a' : '#ffffff',
-              color: isAutoTracking ? '#ffffff' : '#111827',
-              border: isAutoTracking ? 'none' : '1px solid #d1d5db',
-              padding: '10px 16px',
-              borderRadius: '24px',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-              cursor: 'pointer',
-              fontWeight: '600',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              transition: 'all 0.2s ease',
-            }}
           >
             <LocateFixed size={18} />
             {isAutoTracking ? 'Following Truck' : 'Find Truck'}
@@ -359,4 +540,3 @@ function RouteDisplayMap({
 }
 
 export default RouteDisplayMap;
-

@@ -28,6 +28,10 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Only image uploads are allowed.' }, { status: 400 });
   }
 
+  if (size <= 0) {
+    return NextResponse.json({ error: 'Image file is empty.' }, { status: 400 });
+  }
+
   if (size > MAX_FILE_SIZE) {
     return NextResponse.json({ error: 'Image must be 8MB or smaller.' }, { status: 400 });
   }

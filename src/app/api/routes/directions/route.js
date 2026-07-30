@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { enforceIpRateLimit } from '../../../../lib/security/rateLimit.js';
 
 const OSRM_ROUTE_URL = 'https://router.project-osrm.org/route/v1/driving';
 
@@ -28,6 +29,11 @@ function formatDuration(minutes) {
 }
 
 export async function GET(request) {
+  // Proxies the public OSRM demo server, which rate limits aggressively; the map
+  // refetch loop used to hammer it. 30/min per IP is well above real usage.
+  const limited = enforceIpRateLimit(request, 'routes-directions', { limit: 30, windowMs: 60000 });
+  if (limited) return limited;
+
   const { searchParams } = new URL(request.url);
 
   let pickupLat;

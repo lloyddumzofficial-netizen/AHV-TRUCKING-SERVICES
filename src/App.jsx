@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, Menu, Phone, MessageCircle, X, AlertTriangle } from 'lucide-react';
 import Hero from './components/Hero.jsx';
 import TruckShowcase from './components/TruckShowcase.jsx';
@@ -119,7 +119,15 @@ function CustomerNotifications({ session, setSession, onStartInquiry, onOpenInqu
           </button>
         </div>
         {status && <p className="submit-status">{status}</p>}
-        {!isLoading && updates.length === 0 ? (
+        {/* Loading first. The previous `!isLoading && length === 0 ? empty : list`
+            fell into the LIST branch while loading, rendering a blank panel. */}
+        {isLoading && updates.length === 0 ? (
+          <div className="skeleton-card" aria-busy="true" aria-label="Loading updates">
+            <div className="skeleton-pulse skeleton-title" />
+            <div className="skeleton-pulse skeleton-line" />
+            <div className="skeleton-pulse skeleton-line" />
+          </div>
+        ) : updates.length === 0 ? (
           <div className="premium-empty-state">
             <h3>No updates yet</h3>
             <p>Start an inquiry and AHV status updates will show up here.</p>
@@ -217,15 +225,29 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
     Object.values(CLIENT_VIEWS).includes(initialView) ? initialView : CLIENT_VIEWS.home,
   );
   const isAdmin = profile?.role === 'admin';
+  const adminExperience = adminOnly || isAdmin;
   const isProfileLoading = Boolean(authReady && session && profile === undefined);
 
-  const addToast = useCallback((message, type = 'info') => {
-    const id = Date.now();
-    setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4500);
+  const toastTimersRef = useRef([]);
+
+  const removeToast = useCallback((id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const removeToast = (id) => setToasts((prev) => prev.filter((t) => t.id !== id));
+  const addToast = useCallback((message, type = 'info') => {
+    // Date.now() alone collides for two toasts raised in the same millisecond:
+    // React warns on the duplicate key and removeToast deletes both.
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setToasts((prev) => [...prev, { id, message, type }]);
+    const timer = window.setTimeout(() => removeToast(id), 4500);
+    toastTimersRef.current.push(timer);
+  }, [removeToast]);
+
+  // Auto-dismiss timers outlived the component otherwise.
+  useEffect(() => () => {
+    toastTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    toastTimersRef.current = [];
+  }, []);
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -239,7 +261,10 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
 
     let mounted = true;
 
-    withTimeout(supabase.auth.getSession(), 2000, 'Auth check timed out. Please sign in again.')
+    // 7s, matching the profile fetch below. At 2s a slow Philippine mobile
+    // connection routinely timed out and a signed-in user was told to sign in
+    // again, with all their inquiries gone.
+    withTimeout(supabase.auth.getSession(), 7000, 'Auth check timed out. Please sign in again.')
       .then(({ data }) => {
         if (!mounted) {
           return;
@@ -471,7 +496,7 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
   };
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${adminExperience ? 'admin-app-shell' : ''}`}>
       {/* Toast notifications */}
       {toasts.length > 0 && (
         <div className="toast-container" aria-live="polite">
@@ -487,6 +512,7 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
           ))}
         </div>
       )}
+      {!adminExperience && (
       <header className="site-header">
         <button className="brand brand-button" type="button" aria-label="AHV Trucking home" onClick={() => (isAdmin ? returnToTop() : navigateClient(CLIENT_VIEWS.home))}>
           <img src="/SVG/HEADER LOGO.svg" alt="AHV Logo" className="brand-logo-img" />
@@ -575,9 +601,10 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
           </nav>
         )}
       </header>
+      )}
 
       <main>
-        {!isAdmin && !adminOnly && <ProfileOnboarding session={session} profile={profile} setProfile={setProfile} />}
+        {!isAdmin && !adminOnly && <ProfileOnboarding session={session} profile={profile} setProfile={setProfile} setSession={setSession} />}
         {!authReady || isProfileLoading ? (
           <section className="app-screen app-loading-screen" aria-live="polite">
             <p className="eyebrow">AHV account</p>
@@ -608,7 +635,6 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
                   onInquire={() => navigateClient(CLIENT_VIEWS.inquire)}
                   onViewTruck={() => navigateClient(CLIENT_VIEWS.truck)}
                   onMyInquiries={() => openMyInquiries('all')}
-                  onViewFilteredInquiries={openMyInquiries}
                   onTrackReference={trackReference}
                   onSupport={openSupport}
                   onNotifications={openNotifications}
@@ -713,9 +739,9 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
         </button>
       )}
 
-      <Footer phone={CONTACT_PHONE} phoneLabel={CONTACT_PHONE_LABEL} />
+      {!adminExperience && <Footer phone={CONTACT_PHONE} phoneLabel={CONTACT_PHONE_LABEL} />}
 
-      {!isAdmin && !adminOnly && (
+      {!adminExperience && (
         <MobileNav currentView={clientView} onNavigate={handleMobileNavigate} />
       )}
     </div>
