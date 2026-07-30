@@ -31,6 +31,7 @@ function Hero({
   onTrackReference,
   onSupport,
   onNotifications,
+  notificationCount = 0,
 }) {
   const [trackingInput, setTrackingInput] = useState('');
 
@@ -140,8 +141,15 @@ function Hero({
               <Headphones size={23} />
               Support
             </button>
-            <button type="button" onClick={onNotifications}>
-              <Bell size={23} />
+            <button type="button" onClick={onNotifications} className="quick-access-alert-btn">
+              <span className="quick-access-icon-wrap">
+                <Bell size={23} />
+                {notificationCount > 0 && (
+                  <span className="notification-badge" aria-label={`${notificationCount} unread notifications`}>
+                    {notificationCount}
+                  </span>
+                )}
+              </span>
               Alerts
             </button>
           </div>

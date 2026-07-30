@@ -13,9 +13,8 @@ import MobileNav from './components/MobileNav.jsx';
 import { CONTACT_PHONE, CONTACT_PHONE_LABEL, SERVICE_LANES, TRUCK_INFO, FLEET } from './data/siteContent.js';
 import ProfileOnboarding from './components/profile/ProfileOnboarding.jsx';
 import { getProfile } from './lib/profile/api.js';
-import { getInquiries } from './lib/inquiries/api.js';
+import { getNotifications } from './lib/notifications/api.js';
 import { getSupabaseBrowserClient } from './lib/supabase/client.js';
-import { INQUIRY_STATUS_HELP, INQUIRY_STATUS_LABELS } from './data/inquiryStatus.js';
 
 const CLIENT_VIEWS = {
   home: 'home',
@@ -46,25 +45,14 @@ function withTimeout(promise, timeoutMs, timeoutMessage) {
   return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
 }
 
-function getLatestInquiryUpdate(inquiry) {
-  const history = Array.isArray(inquiry.status_history) ? inquiry.status_history : [];
-  const latest = [...history].sort((first, second) => new Date(second.created_at) - new Date(first.created_at))[0];
-
-  return {
-    status: latest?.status || inquiry.status || 'new',
-    notes: latest?.notes || INQUIRY_STATUS_HELP[inquiry.status || 'new'] || 'AHV is reviewing your request.',
-    date: latest?.created_at || inquiry.updated_at || inquiry.created_at,
-  };
-}
-
-function CustomerNotifications({ session, setSession, onStartInquiry, onOpenInquiries }) {
-  const [inquiries, setInquiries] = useState([]);
+function CustomerNotifications({ session, setSession, onStartInquiry, onOpenInquiries, onNotificationsSeen }) {
+  const [notifications, setNotifications] = useState([]);
   const [status, setStatus] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const loadNotifications = useCallback(async () => {
     if (!session?.access_token) {
-      setInquiries([]);
+      setNotifications([]);
       return;
     }
 
@@ -72,15 +60,16 @@ function CustomerNotifications({ session, setSession, onStartInquiry, onOpenInqu
     setStatus('Loading updates...');
 
     try {
-      const data = await getInquiries(session.access_token, { limit: 20 });
-      setInquiries(Array.isArray(data.inquiries) ? data.inquiries : []);
+      const data = await getNotifications(session.access_token, { limit: 20, days: 3 });
+      setNotifications(Array.isArray(data.notifications) ? data.notifications : []);
+      onNotificationsSeen?.(data.latestAt);
       setStatus('');
     } catch (error) {
       setStatus(error.message || 'Could not load notifications.');
     } finally {
       setIsLoading(false);
     }
-  }, [session?.access_token]);
+  }, [onNotificationsSeen, session?.access_token]);
 
   useEffect(() => {
     loadNotifications();
@@ -98,10 +87,6 @@ function CustomerNotifications({ session, setSession, onStartInquiry, onOpenInqu
       </section>
     );
   }
-
-  const updates = inquiries
-    .map((inquiry) => ({ inquiry, latest: getLatestInquiryUpdate(inquiry) }))
-    .sort((first, second) => new Date(second.latest.date || 0) - new Date(first.latest.date || 0));
 
   return (
     <section className="customer-dashboard-view">
@@ -121,13 +106,13 @@ function CustomerNotifications({ session, setSession, onStartInquiry, onOpenInqu
         {status && <p className="submit-status">{status}</p>}
         {/* Loading first. The previous `!isLoading && length === 0 ? empty : list`
             fell into the LIST branch while loading, rendering a blank panel. */}
-        {isLoading && updates.length === 0 ? (
+        {isLoading && notifications.length === 0 ? (
           <div className="skeleton-card" aria-busy="true" aria-label="Loading updates">
             <div className="skeleton-pulse skeleton-title" />
             <div className="skeleton-pulse skeleton-line" />
             <div className="skeleton-pulse skeleton-line" />
           </div>
-        ) : updates.length === 0 ? (
+        ) : notifications.length === 0 ? (
           <div className="premium-empty-state">
             <h3>No updates yet</h3>
             <p>Start an inquiry and AHV status updates will show up here.</p>
@@ -135,12 +120,12 @@ function CustomerNotifications({ session, setSession, onStartInquiry, onOpenInqu
           </div>
         ) : (
           <div className="notification-list">
-            {updates.map(({ inquiry, latest }) => (
-              <button key={inquiry.reference} type="button" onClick={onOpenInquiries}>
-                <span>{INQUIRY_STATUS_LABELS[latest.status] || latest.status}</span>
-                <strong>{inquiry.reference}</strong>
-                <p>{latest.notes}</p>
-                <small>{latest.date ? new Date(latest.date).toLocaleString() : 'No timestamp yet'}</small>
+            {notifications.map((item) => (
+              <button key={item.id} type="button" onClick={onOpenInquiries}>
+                <span>{item.label}</span>
+                <strong>{item.reference}</strong>
+                <p>{item.message}</p>
+                <small>{item.createdAt ? new Date(item.createdAt).toLocaleString() : 'No timestamp yet'}</small>
               </button>
             ))}
           </div>
@@ -221,6 +206,7 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
   const [toasts, setToasts] = useState([]);
   const [trackingReference, setTrackingReference] = useState(initialReference || '');
   const [inquiryFilter, setInquiryFilter] = useState('all');
+  const [notificationCount, setNotificationCount] = useState(0);
   const [clientView, setClientView] = useState(
     Object.values(CLIENT_VIEWS).includes(initialView) ? initialView : CLIENT_VIEWS.home,
   );
@@ -229,6 +215,9 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
   const isProfileLoading = Boolean(authReady && session && profile === undefined);
 
   const toastTimersRef = useRef([]);
+  const notificationTimerRef = useRef(null);
+
+  const notificationStorageKey = session?.user?.id ? `ahv-notifications-seen-${session.user.id}` : '';
 
   const removeToast = useCallback((id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -248,6 +237,16 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
     toastTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     toastTimersRef.current = [];
   }, []);
+
+  const markNotificationsSeen = useCallback((latestAt) => {
+    if (!notificationStorageKey || typeof window === 'undefined') {
+      return;
+    }
+
+    const seenAt = latestAt || new Date().toISOString();
+    window.localStorage.setItem(notificationStorageKey, seenAt);
+    setNotificationCount(0);
+  }, [notificationStorageKey]);
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -336,6 +335,42 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
     };
   }, [authReady, session?.user?.id, session?.access_token, profile]);
 
+  useEffect(() => {
+    if (!authReady || !session?.access_token || adminExperience || !notificationStorageKey) {
+      setNotificationCount(0);
+      return undefined;
+    }
+
+    let active = true;
+
+    const refreshNotificationBadge = async () => {
+      try {
+        const data = await getNotifications(session.access_token, { limit: 12, days: 3 });
+        if (!active) return;
+
+        const seenAt = window.localStorage.getItem(notificationStorageKey) || '';
+        const seenTime = seenAt ? new Date(seenAt).getTime() : 0;
+        const unreadCount = (data.notifications || []).filter((item) => {
+          const createdTime = new Date(item.createdAt || 0).getTime();
+          return Number.isFinite(createdTime) && createdTime > seenTime;
+        }).length;
+
+        setNotificationCount(Math.min(unreadCount, 9));
+      } catch {
+        if (active) setNotificationCount(0);
+      }
+    };
+
+    refreshNotificationBadge();
+    notificationTimerRef.current = window.setInterval(refreshNotificationBadge, 60000);
+
+    return () => {
+      active = false;
+      window.clearInterval(notificationTimerRef.current);
+      notificationTimerRef.current = null;
+    };
+  }, [adminExperience, authReady, notificationStorageKey, session?.access_token]);
+
   const navItems = useMemo(
     () => [
       ...(isAdmin || adminOnly
@@ -381,6 +416,7 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
   };
 
   const openNotifications = () => {
+    markNotificationsSeen();
     openProtectedView(CLIENT_VIEWS.notifications, 'Sign in first to view AHV notifications.');
   };
 
@@ -638,6 +674,7 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
                   onTrackReference={trackReference}
                   onSupport={openSupport}
                   onNotifications={openNotifications}
+                  notificationCount={notificationCount}
                 />
                 <section className="home-next-actions">
                   <button type="button" onClick={() => navigateClient(CLIENT_VIEWS.inquire)}>
@@ -711,6 +748,7 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
                 setSession={setSession}
                 onStartInquiry={() => navigateClient(CLIENT_VIEWS.inquire)}
                 onOpenInquiries={() => openMyInquiries('all')}
+                onNotificationsSeen={markNotificationsSeen}
               />
             )}
 
@@ -742,7 +780,7 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
       {!adminExperience && <Footer phone={CONTACT_PHONE} phoneLabel={CONTACT_PHONE_LABEL} />}
 
       {!adminExperience && (
-        <MobileNav currentView={clientView} onNavigate={handleMobileNavigate} />
+        <MobileNav currentView={clientView} onNavigate={handleMobileNavigate} notificationCount={notificationCount} />
       )}
     </div>
   );

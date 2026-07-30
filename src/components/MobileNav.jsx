@@ -2,7 +2,7 @@ import React from 'react';
 import { Home, Truck, Bell, UserRound } from 'lucide-react';
 // Assuming CLIENT_VIEWS is imported or we just hardcode the strings
 
-export default function MobileNav({ currentView, onNavigate }) {
+export default function MobileNav({ currentView, onNavigate, notificationCount = 0 }) {
   const navItems = [
     { id: 'home', label: 'Home', icon: Home },
     { id: 'my-inquiries', label: 'My Inquiries', icon: Truck },
@@ -24,7 +24,14 @@ export default function MobileNav({ currentView, onNavigate }) {
             // a screen reader and fails contrast-independence.
             aria-current={isActive ? 'page' : undefined}
           >
-            <item.icon size={22} className="nav-icon" />
+            <span className="mobile-nav-icon-wrap">
+              <item.icon size={22} className="nav-icon" />
+              {item.id === 'notifications' && notificationCount > 0 && (
+                <span className="notification-badge" aria-label={`${notificationCount} unread notifications`}>
+                  {notificationCount}
+                </span>
+              )}
+            </span>
             <span>{item.label}</span>
           </button>
         );

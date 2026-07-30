@@ -192,6 +192,24 @@ create policy "Admins can insert audit logs"
   on public.admin_audit_logs for insert
   with check (public.is_admin());
 
+create or replace function public.cleanup_old_operational_logs()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  delete from public.admin_audit_logs
+   where created_at < now() - interval '3 days';
+
+  delete from public.inquiry_status_history
+   where created_at < now() - interval '3 days';
+end;
+$$;
+
+comment on function public.cleanup_old_operational_logs() is
+  'Deletes admin audit logs and customer notification history older than 3 days.';
+
 alter table public.inquiries replica identity full;
 alter table public.inquiry_images replica identity full;
 alter table public.inquiry_status_history replica identity full;

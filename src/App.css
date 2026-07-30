@@ -8170,6 +8170,41 @@ input:hover,
   font-weight: 750;
 }
 
+.mobile-nav-icon-wrap,
+.quick-access-icon-wrap {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+}
+
+.notification-badge {
+  position: absolute;
+  top: -0.42rem;
+  right: -0.55rem;
+  display: inline-grid;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.25rem;
+  place-items: center;
+  color: #fff;
+  background: #dc2626;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  box-shadow: 0 6px 14px rgba(220, 38, 38, 0.24);
+  font-size: 0.63rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.mobile-nav-item.active .notification-badge {
+  top: -0.35rem;
+  right: 0.2rem;
+}
+
+.quick-access-alert-btn {
+  position: relative;
+}
+
 .customer-profile-card {
   display: flex;
   align-items: center;
