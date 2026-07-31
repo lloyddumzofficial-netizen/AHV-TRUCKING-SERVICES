@@ -1,3 +1,5 @@
+import { apiFetch, bearerHeaders } from '../http/apiClient.js';
+
 export async function getAdminInquiries(accessToken, filters = {}) {
   const params = new URLSearchParams();
 
@@ -17,49 +19,34 @@ export async function getAdminInquiries(accessToken, filters = {}) {
     params.set('pageSize', String(filters.pageSize));
   }
 
-  const response = await fetch(`/api/admin/inquiries?${params.toString()}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+  return apiFetch(`/api/admin/inquiries?${params.toString()}`, {
+    headers: bearerHeaders(accessToken),
     cache: 'no-store',
-  });
-  const payload = await response.json();
-
-  if (!response.ok) {
-    throw new Error(payload.error || 'Could not load admin inquiries.');
-  }
-
-  return payload;
+    authAction: 'load admin inquiries',
+  }, 'Could not load admin inquiries.');
 }
 
 export async function updateAdminInquiry(accessToken, reference, updates) {
-  const response = await fetch(`/api/admin/inquiries/${encodeURIComponent(reference)}`, {
+  return apiFetch(`/api/admin/inquiries/${encodeURIComponent(reference)}`, {
     method: 'PATCH',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
+    headers: bearerHeaders(accessToken, { 'Content-Type': 'application/json' }),
     body: JSON.stringify(updates),
-  });
-  const payload = await response.json();
-
-  if (!response.ok) {
-    throw new Error(payload.error || 'Could not update inquiry.');
-  }
-
-  return payload;
+    authAction: 'update inquiry',
+  }, 'Could not update inquiry.');
 }
 
 export async function deleteAdminInquiry(accessToken, reference) {
-  const response = await fetch(`/api/admin/inquiries/${encodeURIComponent(reference)}`, {
+  return apiFetch(`/api/admin/inquiries/${encodeURIComponent(reference)}`, {
     method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
-  const payload = await response.json();
+    headers: bearerHeaders(accessToken),
+    authAction: 'delete inquiry',
+  }, 'Could not delete inquiry.');
+}
 
-  if (!response.ok) {
-    throw new Error(payload.error || 'Could not delete inquiry.');
-  }
-
-  return payload;
+export async function generateAdminDriverLink(accessToken, reference) {
+  return apiFetch(`/api/admin/inquiries/${encodeURIComponent(reference)}/driver-link`, {
+    method: 'POST',
+    headers: bearerHeaders(accessToken),
+    authAction: 'generate driver tracking link',
+  }, 'Could not generate tracking link.');
 }

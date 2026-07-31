@@ -1,19 +1,19 @@
+import { apiFetch, bearerHeaders, sessionExpiredMessage } from '../http/apiClient.js';
+
 export async function getNotifications(accessToken, { limit = 12, days = 3 } = {}) {
+  if (!accessToken) {
+    throw new Error(sessionExpiredMessage('view notifications'));
+  }
+
   const params = new URLSearchParams({
     limit: String(limit),
     days: String(days),
   });
 
-  const response = await fetch(`/api/notifications?${params.toString()}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+  return apiFetch(`/api/notifications?${params.toString()}`, {
+    headers: bearerHeaders(accessToken),
     credentials: 'omit',
     cache: 'no-store',
-  });
-  const payload = await response.json();
-
-  if (!response.ok) {
-    throw new Error(payload.error || 'Could not load notifications.');
-  }
-
-  return payload;
+    authAction: 'view notifications',
+  }, 'Could not load notifications.');
 }

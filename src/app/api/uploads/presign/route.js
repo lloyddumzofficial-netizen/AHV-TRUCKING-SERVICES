@@ -18,7 +18,7 @@ export async function POST(request) {
     );
   }
 
-  const body = await request.json();
+  const body = await request.json().catch(() => ({}));
   const filename = String(body.filename || 'cargo-photo').replace(/[^a-zA-Z0-9._-]/g, '-');
   const contentType = String(body.contentType || '');
   const size = Number(body.size || 0);
@@ -37,7 +37,16 @@ export async function POST(request) {
   }
 
   const key = `${uploadType}/${user.id}/${Date.now()}-${crypto.randomUUID()}-${filename}`;
-  const uploadUrl = await createUploadUrl({ key, contentType });
+  let uploadUrl;
+
+  try {
+    uploadUrl = await createUploadUrl({ key, contentType });
+  } catch {
+    return NextResponse.json(
+      { error: 'Image upload storage is temporarily unavailable. Please try again in a moment.' },
+      { status: 502 },
+    );
+  }
 
   return NextResponse.json({
     key,

@@ -714,14 +714,16 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
                   <h1>Track your AHV trucking requests.</h1>
                   <p>See live inquiry status, quote updates, pickup schedule, and delivery progress from AHV admin.</p>
                 </div>
-                <AuthPanel session={session} setSession={setSession} />
-                <CustomerInquiryList
-                  session={session}
-                  heading="All saved inquiries"
-                  eyebrow={inquiryFilter === 'active' ? 'Active requests' : inquiryFilter === 'completed' ? 'Completed requests' : 'My requests'}
-                  statusFilter={inquiryFilter}
-                  onStartInquiry={() => navigateClient(CLIENT_VIEWS.inquire)}
-                />
+                <div className="customer-workspace">
+                  <AuthPanel session={session} setSession={setSession} />
+                  <CustomerInquiryList
+                    session={session}
+                    heading="All saved inquiries"
+                    eyebrow={inquiryFilter === 'active' ? 'Active requests' : inquiryFilter === 'completed' ? 'Completed requests' : 'My requests'}
+                    statusFilter={inquiryFilter}
+                    onStartInquiry={() => navigateClient(CLIENT_VIEWS.inquire)}
+                  />
+                </div>
               </section>
             )}
 
@@ -732,13 +734,15 @@ function App({ initialView = CLIENT_VIEWS.home, initialReference = '', adminOnly
                   <h1>{trackingReference || 'Track an AHV request'}</h1>
                   <p>Sign in with the same customer account used for the inquiry to view protected status updates.</p>
                 </div>
-                <AuthPanel session={session} setSession={setSession} />
-                <CustomerInquiryList
-                  session={session}
-                  heading="Tracking details"
-                  eyebrow="Inquiry reference"
-                  reference={trackingReference}
-                />
+                <div className="customer-workspace">
+                  <AuthPanel session={session} setSession={setSession} />
+                  <CustomerInquiryList
+                    session={session}
+                    heading="Tracking details"
+                    eyebrow="Inquiry reference"
+                    reference={trackingReference}
+                  />
+                </div>
               </section>
             )}
 

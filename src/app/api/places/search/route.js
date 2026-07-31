@@ -126,7 +126,7 @@ export async function GET(request) {
 
     return NextResponse.json({ places });
   } catch {
-    const fallbackPlaces = await searchOpenStreetMap(query);
+    const fallbackPlaces = await searchOpenStreetMap(query).catch(() => []);
 
     return NextResponse.json({ places: fallbackPlaces });
   }

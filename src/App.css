@@ -1244,6 +1244,7 @@
 }
 
 .admin-route-actions a,
+.admin-route-actions span,
 .admin-update-form button {
   display: inline-flex;
   align-items: center;
@@ -1257,6 +1258,13 @@
   font-weight: 700;
   text-align: center;
   text-decoration: none;
+}
+
+.admin-route-actions span.disabled {
+  color: #64748b;
+  background: #f4f7f6;
+  border-color: #d8e1dc;
+  cursor: not-allowed;
 }
 
 .admin-update-form {
@@ -3058,21 +3066,30 @@ textarea:focus {
   gap: 0.35rem;
 }
 
-.admin-sidebar nav a {
+.admin-sidebar nav a,
+.admin-sidebar nav button {
   display: flex;
   align-items: center;
   gap: 0.65rem;
+  width: 100%;
   min-height: 42px;
   padding: 0.65rem 0.75rem;
   color: #dbe5f4;
+  background: transparent;
+  border: 0;
   text-decoration: none;
+  font: inherit;
   font-weight: 800;
   border-radius: 8px;
+  text-align: left;
+  cursor: pointer;
   transition: background 0.16s ease, color 0.16s ease;
 }
 
 .admin-sidebar nav a:hover,
-.admin-sidebar nav a.active {
+.admin-sidebar nav a.active,
+.admin-sidebar nav button:hover,
+.admin-sidebar nav button.active {
   color: #fff;
   background: rgba(34, 197, 94, 0.14);
 }
@@ -3196,6 +3213,23 @@ textarea:focus {
   border-top: 4px solid #111827;
 }
 
+button.admin-overview-card {
+  display: grid;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+button.admin-overview-card:hover,
+button.admin-overview-card:focus-visible,
+button.admin-overview-card.active {
+  transform: translateY(-1px);
+  border-color: rgba(15, 23, 42, 0.18);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.1);
+}
+
 .admin-table-panel,
 .admin-detail-section {
   background: #fff;
@@ -3206,9 +3240,60 @@ textarea:focus {
 
 .admin-table-panel {
   display: grid;
-  gap: 0.85rem;
+  gap: 1rem;
   min-width: 0;
-  padding: 1rem;
+  padding: 1.15rem;
+}
+
+.admin-table-panel.admin-table-page {
+  min-height: calc(100dvh - 150px);
+}
+
+.admin-table-panel.admin-table-page .admin-table-wrap {
+  max-height: none;
+  min-height: 520px;
+  height: calc(100dvh - 420px);
+}
+
+.admin-realtime-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.admin-realtime-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.admin-realtime-card {
+  display: grid;
+  gap: 0.45rem;
+  padding: 1.2rem;
+  background: #fff;
+  border: 1px solid #dfe7e1;
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05);
+}
+
+.admin-realtime-card span {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.admin-realtime-card strong {
+  color: #0f172a;
+  font-size: 1.5rem;
+  line-height: 1.1;
+}
+
+.admin-realtime-card p {
+  margin: 0;
+  color: #64748b;
+  font-weight: 750;
 }
 
 .admin-panel-head {
@@ -3240,13 +3325,13 @@ textarea:focus {
 
 .admin-filter-bar {
   display: grid;
-  grid-template-columns: minmax(300px, 1fr) 180px 170px auto;
-  gap: 0.7rem;
+  grid-template-columns: minmax(420px, 1fr) 220px 220px auto;
+  gap: 0.85rem;
   align-items: end;
-  padding: 0.85rem;
+  padding: 1rem;
   background: #f8faf9;
   border: 1px solid #e5ebe7;
-  border-radius: 10px;
+  border-radius: 12px;
 }
 
 .admin-filter-bar label {
@@ -3263,15 +3348,15 @@ textarea:focus {
 .admin-filter-bar input {
   width: 100%;
   min-width: 0;
-  min-height: 42px;
-  padding: 0.65rem 0.75rem;
+  min-height: 52px;
+  padding: 0.8rem 0.9rem;
   color: var(--ink);
   background: #fff;
   border: 1px solid #d6e0da;
-  border-radius: 8px;
+  border-radius: 10px;
   font: inherit;
-  font-size: 0.9rem;
-  font-weight: 700;
+  font-size: 1rem;
+  font-weight: 800;
 }
 
 .admin-filter-bar .admin-search {
@@ -3286,12 +3371,14 @@ textarea:focus {
 }
 
 .admin-filter-bar .admin-search input {
-  min-height: 42px;
+  min-height: 52px;
 }
 
 .admin-filter-bar .admin-search svg {
   align-self: end;
-  margin-bottom: 0.72rem;
+  margin-bottom: 0.9rem;
+  width: 22px;
+  height: 22px;
 }
 
 .admin-clear-button,
@@ -3322,6 +3409,36 @@ textarea:focus {
   border-color: #aab8b0;
 }
 
+.admin-quick-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.admin-quick-filters button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0.6rem 0.9rem;
+  color: #475569;
+  background: #ffffff;
+  border: 1px solid #d6e0da;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 900;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.admin-quick-filters button:hover,
+.admin-quick-filters button:focus-visible,
+.admin-quick-filters button.active {
+  color: #0f7a39;
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
 .admin-sync-strip {
   display: flex;
   flex-wrap: wrap;
@@ -3331,34 +3448,36 @@ textarea:focus {
 
 .admin-sync-strip span {
   display: inline-flex;
-  min-height: 28px;
+  min-height: 32px;
   align-items: center;
-  padding: 0.25rem 0.55rem;
+  padding: 0.35rem 0.65rem;
   color: #475569;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 999px;
-  font-size: 0.76rem;
+  font-size: 0.82rem;
   font-weight: 800;
 }
 
 .admin-table-wrap {
   min-width: 0;
+  max-height: min(68vh, 720px);
   overflow-x: auto;
+  overflow-y: auto;
   border: 1px solid #e2e8e4;
-  border-radius: 10px;
+  border-radius: 12px;
 }
 
 .admin-inquiries-table {
   width: 100%;
-  min-width: 1060px;
+  min-width: 1280px;
   border-collapse: collapse;
   background: #fff;
 }
 
 .admin-inquiries-table th,
 .admin-inquiries-table td {
-  padding: 0.85rem;
+  padding: 1rem 1.1rem;
   text-align: left;
   vertical-align: middle;
   border-bottom: 1px solid #edf2ef;
@@ -3370,9 +3489,23 @@ textarea:focus {
   z-index: 1;
   color: #475569;
   background: #f8faf9;
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   font-weight: 950;
   text-transform: uppercase;
+}
+
+.admin-inquiries-table th:last-child,
+.admin-inquiries-table td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background: inherit;
+  box-shadow: -12px 0 20px rgba(255, 255, 255, 0.86);
+}
+
+.admin-inquiries-table th:last-child {
+  z-index: 3;
+  background: #f8faf9;
 }
 
 .admin-inquiries-table tbody tr {
@@ -3383,6 +3516,14 @@ textarea:focus {
   background: #f8faf9;
 }
 
+.admin-inquiries-table tbody tr:nth-child(even) {
+  background: #fcfdfc;
+}
+
+.admin-inquiries-table tbody tr.is-clickable {
+  cursor: pointer;
+}
+
 .admin-inquiries-table tbody tr.selected {
   background: #f0fdf4;
   box-shadow: inset 3px 0 0 #16a34a;
@@ -3390,8 +3531,8 @@ textarea:focus {
 
 .admin-inquiries-table td {
   color: #1f2937;
-  font-size: 0.9rem;
-  font-weight: 700;
+  font-size: 1rem;
+  font-weight: 800;
 }
 
 .admin-inquiries-table td strong,
@@ -3402,11 +3543,11 @@ textarea:focus {
 }
 
 .admin-inquiries-table td small {
-  max-width: 360px;
-  margin-top: 0.2rem;
+  max-width: 460px;
+  margin-top: 0.3rem;
   color: #64748b;
-  font-size: 0.78rem;
-  font-weight: 700;
+  font-size: 0.86rem;
+  font-weight: 750;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3416,11 +3557,11 @@ textarea:focus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 26px;
-  padding: 0.35rem 0.6rem;
+  min-height: 32px;
+  padding: 0.45rem 0.7rem;
   border-radius: 999px;
   color: #fff;
-  font-size: 0.68rem;
+  font-size: 0.76rem;
   font-weight: 950;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -3429,7 +3570,7 @@ textarea:focus {
 
 .admin-row-actions {
   display: flex;
-  gap: 0.35rem;
+  gap: 0.45rem;
   align-items: center;
 }
 
@@ -3438,15 +3579,15 @@ textarea:focus {
   align-items: center;
   justify-content: center;
   gap: 0.3rem;
-  min-height: 34px;
-  padding: 0.45rem 0.55rem;
+  min-height: 40px;
+  padding: 0.55rem 0.7rem;
   color: #111827;
   background: #fff;
   border: 1px solid #d6e0da;
   border-radius: 7px;
   font: inherit;
-  font-size: 0.76rem;
-  font-weight: 850;
+  font-size: 0.86rem;
+  font-weight: 900;
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
@@ -3501,8 +3642,8 @@ textarea:focus {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.7rem;
-  padding: 0;
+  gap: 0.9rem;
+  padding: 0.25rem 0 0;
   background: transparent;
   border: 0;
 }
@@ -3512,9 +3653,10 @@ textarea:focus {
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
-  min-height: 38px;
-  padding: 0.55rem 0.75rem;
-  border-radius: 8px;
+  min-height: 48px;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  font-size: 0.95rem;
 }
 
 .admin-pagination span {
@@ -3656,6 +3798,14 @@ textarea:focus {
   color: #b91c1c;
   background: #fff;
   border-color: #fecaca;
+}
+
+.admin-detail-actions button:disabled {
+  color: #64748b;
+  background: #f4f7f6;
+  border-color: #d8e1dc;
+  cursor: not-allowed;
+  opacity: 1;
 }
 
 .admin-route-pair {
@@ -9171,42 +9321,150 @@ input:hover,
 .route-live-map-shell {
   position: relative;
   width: 100%;
+  min-height: 340px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(14, 165, 233, 0.08), transparent 42%),
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 12px;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.12);
+  perspective: 900px;
+  isolation: isolate;
+}
+
+.route-map-stage {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 100%;
+  transition: transform 0.28s ease, inset 0.28s ease;
+}
+
+.route-live-map-shell.is-immersive .route-map-stage {
+  inset: -36% -10% -22%;
+  transform: translateY(-3%) rotateX(40deg) scale(1.15);
+}
+
+.route-live-map-shell.is-immersive::before {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 2;
+  height: 18%;
+  background: linear-gradient(0deg, rgba(248, 250, 252, 0.86), transparent);
+  content: "";
+  pointer-events: none;
+}
+
+.route-map-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 20%, transparent 74%, rgba(255, 255, 255, 0.18)),
+    radial-gradient(circle at 50% 54%, transparent 52%, rgba(15, 23, 42, 0.1));
+  pointer-events: none;
 }
 
 .route-live-map-frame {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--soft);
-  border: 1px solid #dce9e1;
-  border-radius: 14px;
+  background: #f8fafc;
+  border-radius: inherit;
 }
 
-.route-follow-btn {
+.route-live-map-frame .leaflet-tile {
+  filter: saturate(1.08) contrast(1.02) brightness(1.04);
+}
+
+.route-live-map-frame .leaflet-tooltip {
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 999px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.16);
+  font-weight: 900;
+}
+
+.route-follow-btn,
+.route-view-btn,
+.route-zoom-controls button {
   position: absolute;
-  right: 14px;
-  bottom: 14px;
   z-index: var(--z-map-control);
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  min-height: 44px;
-  padding: 0.55rem 1rem;
+  min-height: 48px;
+  padding: 0.65rem 1.1rem;
   color: #111827;
   background: #ffffff;
   border: 1px solid #d1d5db;
   border-radius: 999px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.18);
   font-family: inherit;
-  font-size: 0.82rem;
-  font-weight: 800;
+  font-size: 0.88rem;
+  font-weight: 900;
   cursor: pointer;
   transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
+.route-follow-btn {
+  right: 18px;
+  bottom: 18px;
+}
+
+.route-view-btn {
+  left: 18px;
+  bottom: 18px;
+  min-width: 82px;
+  justify-content: center;
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(148, 163, 184, 0.32);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.14);
+}
+
+.route-view-btn.active {
+  color: #111827;
+  background: linear-gradient(135deg, #fed7aa, #fb923c);
+  border-color: transparent;
+}
+
+.route-zoom-controls {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  z-index: var(--z-map-control);
+  display: grid;
+  gap: 0.45rem;
+}
+
+.route-zoom-controls button {
+  position: static;
+  justify-content: center;
+  width: 46px;
+  min-width: 46px;
+  height: 46px;
+  min-height: 46px;
+  padding: 0;
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(15, 23, 42, 0.16);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.2);
+  font-size: 1.35rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.route-zoom-controls button:hover,
+.route-zoom-controls button:focus {
+  color: #ffffff;
+  background: #0f172a;
+}
+
 .route-follow-btn.is-following {
   color: #ffffff;
-  background: var(--green);
+  background: linear-gradient(135deg, #16a34a, #0f766e);
   border-color: transparent;
 }
 
@@ -9238,6 +9496,37 @@ input:hover,
 
 .route-gps-meta {
     grid-template-columns: 1fr;
+  }
+
+.route-live-map-shell {
+    min-height: 380px;
+  }
+
+.route-live-map-shell.is-immersive .route-map-stage {
+    inset: -38% -12% -24%;
+    transform: translateY(-3%) rotateX(38deg) scale(1.17);
+  }
+
+.route-follow-btn {
+    right: 10px;
+    bottom: 12px;
+  }
+
+.route-view-btn {
+    left: 10px;
+    bottom: 12px;
+  }
+
+.route-zoom-controls {
+    top: 10px;
+    left: 10px;
+  }
+
+.route-zoom-controls button {
+    width: 42px;
+    min-width: 42px;
+    height: 42px;
+    min-height: 42px;
   }
 
 /* Read at arm's length, in daylight, while parked. Two columns keeps all four
@@ -9769,22 +10058,36 @@ textarea[aria-invalid='true'] {
 }
 
 .admin-app-shell .admin-table-panel {
+  display: grid;
+  gap: 1rem;
   overflow: hidden;
+}
+
+.admin-app-shell .admin-table-panel.admin-table-page {
+  min-height: calc(100dvh - 148px);
 }
 
 .admin-app-shell .admin-table-wrap {
   width: 100%;
-  overflow-x: auto;
+  max-height: calc(100dvh - 430px);
+  min-height: 360px;
+  overflow: auto;
+}
+
+.admin-app-shell .admin-table-panel.admin-table-page .admin-table-wrap {
+  max-height: none;
+  min-height: 520px;
+  height: calc(100dvh - 420px);
 }
 
 .admin-app-shell .admin-inquiries-table {
-  min-width: 1180px;
+  min-width: 1280px;
 }
 
 .admin-app-shell .admin-row-actions {
   display: flex;
   flex-wrap: nowrap;
-  gap: 0.35rem;
+  gap: 0.45rem;
 }
 
 .admin-app-shell .admin-row-actions button {
@@ -10146,8 +10449,35 @@ textarea[aria-invalid='true'] {
     line-height: 1.2;
   }
 
+  .recent-inquiries {
+    padding: 0.45rem !important;
+  }
+
+  .recent-list {
+    gap: 0.5rem !important;
+  }
+
+  .customer-inquiry-card {
+    padding: 0.55rem !important;
+  }
+
+  .customer-details-collapse {
+    gap: 0.55rem !important;
+    margin-inline: -0.2rem !important;
+  }
+
   .route-live-map {
-    margin: 0.8rem 0 0;
+    margin: 0.35rem 0 0 !important;
+  }
+
+  .route-live-map-shell {
+    border-radius: 8px !important;
+  }
+
+  .route-gps-meta span,
+  .route-driver-location,
+  .customer-quote-box {
+    padding-inline: 0.65rem !important;
   }
 
   .route-live-map-head {
@@ -10160,5 +10490,1201 @@ textarea[aria-invalid='true'] {
 
   .mobile-bottom-nav {
     border-radius: 14px 14px 0 0 !important;
+  }
+}
+
+/* Final responsive safety layer: keeps every customer-facing screen usable on
+   narrow phones after the older mobile overrides above. */
+@media (max-width: 768px) {
+  html,
+  body,
+  #root,
+  .app-shell {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  body {
+    min-width: 0;
+  }
+
+  .site-header {
+    min-height: 58px;
+    padding: 0.55rem 0.7rem !important;
+  }
+
+  .brand {
+    gap: 0.45rem;
+  }
+
+  .brand-logo-img {
+    height: 36px !important;
+  }
+
+  .brand small {
+    display: none;
+  }
+
+  .header-call {
+    display: none !important;
+  }
+
+  .hero-section,
+  .truck-section,
+  .inquiry-section,
+  .app-screen,
+  .customer-dashboard-view,
+  .auth-panel,
+  .profile-panel,
+  .home-next-actions,
+  .site-footer {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-inline: clamp(0.55rem, 3vw, 0.95rem) !important;
+  }
+
+  .hero-section,
+  .inquiry-section,
+  .customer-dashboard-view,
+  .app-screen {
+    padding-bottom: calc(5.8rem + env(safe-area-inset-bottom)) !important;
+  }
+
+  .screen-heading,
+  .inquiry-heading,
+  .form-step,
+  .recent-inquiries,
+  .customer-inquiry-card,
+  .premium-empty-state,
+  .profile-details-panel,
+  .auth-panel,
+  .profile-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .screen-heading h1,
+  .inquiry-heading h2,
+  .hero-copy h1,
+  .profile-panel h2 {
+    overflow-wrap: anywhere;
+  }
+
+  .field-grid,
+  .admin-form-grid,
+  .admin-detail-grid,
+  .customer-card-meta,
+  .driver-gps-grid,
+  .route-gps-meta,
+  .success-modal-actions,
+  .profile-action-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .field-grid input,
+  .field-grid select,
+  .full-field textarea,
+  .location-correction-form input,
+  .auth-panel input,
+  .mobile-track-card input {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .hero-actions,
+  .step-nav,
+  .admin-confirm-actions,
+  .profile-action-row,
+  .success-modal-actions {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  .hero-actions button,
+  .step-nav button,
+  .profile-action-row button,
+  .success-modal-actions button,
+  .customer-map-toggle-btn,
+  .location-correction-save {
+    width: 100% !important;
+  }
+
+  .profile-modal-backdrop,
+  .success-modal-backdrop,
+  .admin-modal-backdrop {
+    padding: 0.65rem !important;
+  }
+
+  .profile-panel,
+  .success-modal-card,
+  .admin-confirm-modal,
+  .admin-location-modal {
+    max-height: calc(100dvh - 1.3rem);
+    overflow-y: auto;
+    padding: 1rem !important;
+    border-radius: 12px !important;
+  }
+
+  .profile-photo-upload {
+    min-height: 132px !important;
+  }
+
+  .profile-photo-upload img {
+    width: 78px !important;
+    height: 78px !important;
+  }
+
+  .route-live-map-shell,
+  .map-frame,
+  .map-loading {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: min(72dvh, 390px) !important;
+  }
+
+  .route-live-map-shell {
+    height: min(72dvh, 460px) !important;
+  }
+
+  .route-live-map-head,
+  .customer-inquiry-head,
+  .location-correction-head {
+    align-items: stretch !important;
+  }
+
+  .route-live-map-chips {
+    justify-content: flex-start !important;
+  }
+
+  .route-follow-btn,
+  .route-view-btn {
+    min-height: 44px !important;
+    padding: 0.55rem 0.8rem !important;
+    font-size: 0.8rem !important;
+  }
+
+  .route-follow-btn {
+    right: 8px !important;
+    bottom: 10px !important;
+  }
+
+  .route-view-btn {
+    left: 8px !important;
+    bottom: 10px !important;
+    min-width: 70px !important;
+  }
+
+  .route-zoom-controls {
+    top: 8px !important;
+    left: 8px !important;
+    gap: 0.35rem !important;
+  }
+
+  .route-zoom-controls button {
+    width: 40px !important;
+    min-width: 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+  }
+
+  .mobile-bottom-nav {
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-bottom: max(0.55rem, env(safe-area-inset-bottom)) !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .hero-section,
+  .inquiry-section,
+  .customer-dashboard-view,
+  .app-screen {
+    padding-inline: 0.45rem !important;
+  }
+
+  .recent-inquiries,
+  .customer-inquiry-card,
+  .form-step,
+  .inquiry-heading {
+    padding: 0.5rem !important;
+  }
+
+  .route-follow-btn span,
+  .route-view-btn span {
+    font-size: 0.76rem !important;
+  }
+
+  .route-follow-btn {
+    max-width: calc(100% - 94px);
+  }
+}
+
+/* Final admin simplification layer: keep the operations console calm, readable,
+   and predictable after earlier visual experiments. */
+.admin-app-shell .admin-dashboard.admin-console {
+  background: #f4f7f5 !important;
+}
+
+.admin-app-shell .admin-console-shell {
+  grid-template-columns: 248px minmax(0, 1fr) !important;
+}
+
+.admin-app-shell .admin-sidebar {
+  padding: 1rem !important;
+  background: #111827 !important;
+}
+
+.admin-app-shell .admin-sidebar nav {
+  gap: 0.45rem !important;
+}
+
+.admin-app-shell .admin-sidebar nav button {
+  min-height: 46px !important;
+  padding: 0.75rem 0.85rem !important;
+  border-radius: 8px !important;
+  font-size: 0.95rem !important;
+}
+
+.admin-app-shell .admin-sidebar-status {
+  border-radius: 8px !important;
+}
+
+.admin-app-shell .admin-main {
+  gap: 0.9rem !important;
+  padding: 1rem !important;
+}
+
+.admin-app-shell .admin-console-header,
+.admin-app-shell .admin-table-panel,
+.admin-app-shell .admin-detail-section,
+.admin-app-shell .admin-realtime-card,
+.admin-app-shell .admin-overview-card {
+  border: 1px solid #dfe7e1 !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+}
+
+.admin-app-shell .admin-console-header {
+  padding: 0.9rem 1rem !important;
+  background: #ffffff !important;
+}
+
+.admin-app-shell .admin-console-header h1 {
+  font-size: clamp(1.75rem, 2vw, 2.25rem) !important;
+}
+
+.admin-app-shell .admin-console-header p {
+  max-width: 760px;
+  color: #526173 !important;
+  font-size: 0.95rem !important;
+}
+
+.admin-app-shell .admin-overview-grid,
+.admin-app-shell .admin-realtime-grid {
+  gap: 0.65rem !important;
+}
+
+.admin-app-shell .admin-overview-card {
+  min-height: 96px !important;
+  padding: 0.85rem !important;
+  background: #ffffff !important;
+}
+
+.admin-app-shell .admin-overview-card strong {
+  font-size: 1.8rem !important;
+}
+
+.admin-app-shell .admin-table-panel {
+  gap: 0.75rem !important;
+  padding: 0.85rem !important;
+  background: #ffffff !important;
+}
+
+.admin-app-shell .admin-table-panel.admin-table-page {
+  min-height: calc(100dvh - 128px) !important;
+}
+
+.admin-app-shell .admin-panel-head {
+  align-items: center !important;
+}
+
+.admin-app-shell .admin-filter-bar {
+  grid-template-columns: minmax(360px, 1fr) 190px 190px auto !important;
+  gap: 0.65rem !important;
+  padding: 0.7rem !important;
+  background: #f8faf9 !important;
+  border-radius: 8px !important;
+}
+
+.admin-app-shell .admin-filter-bar select,
+.admin-app-shell .admin-filter-bar input {
+  min-height: 46px !important;
+  padding: 0.65rem 0.75rem !important;
+  border-radius: 7px !important;
+  font-size: 0.92rem !important;
+}
+
+.admin-app-shell .admin-filter-bar .admin-search svg {
+  width: 19px !important;
+  height: 19px !important;
+  margin-bottom: 0.75rem !important;
+}
+
+.admin-app-shell .admin-clear-button {
+  min-height: 46px !important;
+}
+
+.admin-app-shell .admin-quick-filters {
+  gap: 0.4rem !important;
+}
+
+.admin-app-shell .admin-quick-filters button,
+.admin-app-shell .admin-sync-strip span {
+  min-height: 34px !important;
+  padding: 0.4rem 0.65rem !important;
+  border-radius: 999px !important;
+  font-size: 0.78rem !important;
+}
+
+.admin-app-shell .admin-quick-filters {
+  align-items: center !important;
+}
+
+.admin-app-shell .admin-quick-filters button {
+  width: auto !important;
+  min-width: 0 !important;
+  height: auto !important;
+  aspect-ratio: auto !important;
+  border-radius: 8px !important;
+  white-space: nowrap !important;
+}
+
+.admin-app-shell .admin-table-wrap,
+.admin-app-shell .admin-table-panel.admin-table-page .admin-table-wrap {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: calc(100dvh - 360px) !important;
+  border-radius: 8px !important;
+}
+
+.admin-app-shell .admin-table-panel.admin-table-page .admin-table-wrap {
+  max-height: calc(100dvh - 315px) !important;
+}
+
+.admin-app-shell .admin-inquiries-table {
+  min-width: 1160px !important;
+}
+
+.admin-app-shell .admin-inquiries-table th,
+.admin-app-shell .admin-inquiries-table td {
+  padding: 0.78rem 0.85rem !important;
+}
+
+.admin-app-shell .admin-inquiries-table th {
+  font-size: 0.74rem !important;
+  background: #f8faf9 !important;
+}
+
+.admin-app-shell .admin-inquiries-table td {
+  font-size: 0.9rem !important;
+}
+
+.admin-app-shell .admin-inquiries-table td small {
+  max-width: 420px !important;
+  font-size: 0.78rem !important;
+}
+
+.admin-app-shell .admin-inquiries-table th:last-child,
+.admin-app-shell .admin-inquiries-table td:last-child {
+  position: static !important;
+  box-shadow: none !important;
+}
+
+.admin-app-shell .admin-status-chip {
+  min-height: 28px !important;
+  padding: 0.35rem 0.58rem !important;
+  font-size: 0.68rem !important;
+}
+
+.admin-app-shell .admin-row-actions {
+  gap: 0.35rem !important;
+}
+
+.admin-app-shell .admin-row-actions button {
+  min-height: 36px !important;
+  padding: 0.45rem 0.55rem !important;
+  border-radius: 7px !important;
+  font-size: 0.76rem !important;
+}
+
+.admin-app-shell .admin-pagination {
+  padding-top: 0 !important;
+}
+
+.admin-app-shell .admin-pagination button {
+  min-height: 42px !important;
+  padding: 0.6rem 0.85rem !important;
+  border-radius: 8px !important;
+}
+
+/* Final desktop customer layout repair: previous mobile-first overrides were
+   leaking into wide screens and splitting the inquiry/customer pages into
+   uneven fragments. Keep phones app-like, but make desktop calm and readable. */
+@media (min-width: 769px) {
+  .app-shell {
+    background:
+      radial-gradient(circle at 8% 12%, rgba(22, 163, 74, 0.08), transparent 32%),
+      linear-gradient(180deg, #fbfdfb 0%, #f5faf7 100%) !important;
+    padding-bottom: 0 !important;
+  }
+
+  .site-header {
+    width: min(100% - 3rem, 1320px);
+    height: 76px !important;
+    margin: 1.25rem auto 0;
+    padding: 0.65rem 1.35rem !important;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 18px;
+    box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08) !important;
+  }
+
+  .brand {
+    flex: 0 0 auto;
+  }
+
+  .brand-logo-img {
+    height: 58px !important;
+  }
+
+  .desktop-nav {
+    display: inline-flex !important;
+    min-width: 0;
+    padding: 0.35rem;
+    background: #f7faf8;
+    border: 1px solid #dbe7df;
+    border-radius: 999px;
+  }
+
+  .desktop-nav button {
+    min-height: 46px;
+    padding: 0.72rem 1.15rem !important;
+    border-radius: 999px !important;
+    font-size: 0.88rem !important;
+  }
+
+  .desktop-nav button.active {
+    color: #fff !important;
+    background: #168a42 !important;
+  }
+
+  .desktop-nav button.active::after {
+    display: none !important;
+  }
+
+  .menu-button,
+  .mobile-nav,
+  .mobile-bottom-nav {
+    display: none !important;
+  }
+
+  .hero-section,
+  .truck-section,
+  .inquiry-section,
+  .app-screen,
+  .customer-dashboard-view,
+  .home-next-actions,
+  .site-footer {
+    width: min(100% - 3rem, 1180px) !important;
+    max-width: 1180px !important;
+    margin-inline: auto !important;
+    padding-inline: 0 !important;
+  }
+
+  .hero-section {
+    display: grid !important;
+    grid-template-columns: minmax(440px, 0.88fr) minmax(420px, 1.12fr);
+    align-items: center;
+    gap: clamp(2rem, 5vw, 5rem) !important;
+    min-height: auto !important;
+    padding-top: 2.2rem !important;
+    padding-bottom: 3rem !important;
+    background: transparent !important;
+  }
+
+  .hero-copy {
+    display: grid !important;
+    gap: 1rem !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .hero-copy h1 {
+    max-width: 11ch !important;
+    margin: 0 !important;
+    font-size: clamp(4rem, 5.8vw, 6.6rem) !important;
+    line-height: 0.94 !important;
+    letter-spacing: 0 !important;
+  }
+
+  .hero-text {
+    max-width: 560px !important;
+    margin: 0 !important;
+    font-size: 1.08rem !important;
+    line-height: 1.65 !important;
+  }
+
+  .hero-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+    gap: 0.9rem !important;
+    width: min(100%, 500px) !important;
+    margin-top: 0.3rem !important;
+  }
+
+  .hero-actions .primary-action,
+  .hero-actions .secondary-action,
+  .hero-actions .tertiary-action {
+    display: flex !important;
+    justify-content: space-between !important;
+    min-height: 56px !important;
+    width: 100% !important;
+    padding: 0.9rem 1.15rem !important;
+    border-radius: 12px !important;
+    font-size: 0.96rem !important;
+    font-weight: 850 !important;
+  }
+
+  .hero-actions .tertiary-action {
+    grid-column: 1;
+  }
+
+  .hero-proof-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem !important;
+    width: min(100%, 520px);
+    margin: 0.2rem 0 0 !important;
+  }
+
+  .hero-proof-grid div {
+    min-width: 0;
+    padding: 0.9rem;
+    background: #fff;
+    border: 1px solid #dbe7df;
+    border-radius: 10px;
+  }
+
+  .hero-proof-grid strong,
+  .hero-proof-grid span {
+    display: block;
+  }
+
+  .hero-visual {
+    display: grid !important;
+    position: relative !important;
+    align-self: stretch;
+    min-height: 520px;
+  }
+
+  .hero-app-mockup {
+    display: none !important;
+  }
+
+  .hero-section .truck-photo-panel {
+    display: block !important;
+    height: 100% !important;
+    min-height: 520px !important;
+    border-radius: 18px !important;
+    background: #0f3b27 !important;
+  }
+
+  .hero-section .truck-badge,
+  .hero-section .coverage-card,
+  .hero-section .trust-card {
+    display: flex !important;
+  }
+
+  .hero-mobile-fleet-chip,
+  .hero-mobile-route-card {
+    display: none !important;
+  }
+
+  .hero-supporting-content {
+    grid-column: 1 / -1;
+    display: grid !important;
+    gap: 1rem !important;
+    width: 100%;
+    margin-top: -1rem;
+  }
+
+  .popular-routes-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    margin-top: 0 !important;
+  }
+
+  .popular-routes-header h3 {
+    margin: 0 !important;
+    color: #111827 !important;
+    font-size: 1rem !important;
+    font-weight: 950 !important;
+  }
+
+  .view-all-routes {
+    min-height: 40px !important;
+    padding: 0.55rem 0.8rem !important;
+    color: #111827 !important;
+    background: #fff !important;
+    border: 1px solid #dbe7df !important;
+    border-radius: 999px !important;
+    font-weight: 850 !important;
+  }
+
+  .route-strip {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 0.85rem !important;
+    margin-top: 0 !important;
+  }
+
+  .route-card {
+    display: grid !important;
+    grid-template-columns: 38px minmax(0, 1fr) 18px;
+    align-items: center;
+    gap: 0.7rem !important;
+    min-width: 0;
+    padding: 0.9rem !important;
+    background: #fff !important;
+    border: 1px solid #dbe7df !important;
+    border-radius: 12px !important;
+    box-shadow: none !important;
+  }
+
+  .route-card span {
+    min-width: 0;
+    overflow: hidden;
+    color: #0f172a !important;
+    background: transparent !important;
+    border: 0 !important;
+    padding: 0 !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .how-it-works {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.9rem !important;
+    margin-top: 0.2rem !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+  }
+
+  .how-step {
+    display: grid !important;
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 0.75rem !important;
+    align-items: start !important;
+    padding: 1rem;
+    background: #fff;
+    border: 1px solid #dbe7df;
+    border-radius: 12px;
+  }
+
+  .how-step-arrow {
+    display: none !important;
+  }
+
+  .inquiry-section {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 1rem !important;
+    padding-top: 2rem !important;
+    padding-bottom: 3rem !important;
+    background: transparent !important;
+  }
+
+  .inquiry-heading {
+    position: static !important;
+    display: grid !important;
+    grid-template-columns: minmax(320px, 0.8fr) minmax(420px, 1fr);
+    gap: 2rem !important;
+    align-items: end;
+    padding: 1.4rem 1.6rem !important;
+    background: #fff !important;
+    border: 1px solid #dbe7df !important;
+    border-radius: 16px !important;
+    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.06) !important;
+  }
+
+  .inquiry-heading .eyebrow,
+  .inquiry-heading h2,
+  .inquiry-heading > p {
+    grid-column: 1;
+  }
+
+  .inquiry-heading h2 {
+    max-width: 9ch;
+    margin: 0 !important;
+    font-size: clamp(3.1rem, 5.2vw, 5.4rem) !important;
+    line-height: 0.96 !important;
+  }
+
+  .inquiry-heading > p {
+    max-width: 460px;
+    margin: 0 !important;
+    font-size: 1rem !important;
+    line-height: 1.6 !important;
+  }
+
+  .inquiry-auth-slot {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    align-self: center;
+    min-width: 0;
+  }
+
+  .inquiry-auth-slot .auth-panel {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .backend-required,
+  .step-progress,
+  .inquiry-form,
+  .inquiry-summary,
+  .recent-inquiries {
+    width: min(100%, 760px) !important;
+    max-width: 760px !important;
+    margin-inline: auto !important;
+  }
+
+  .step-progress {
+    margin-top: 0 !important;
+    padding: 1rem !important;
+    background: #fff !important;
+    border: 1px solid #dbe7df !important;
+    border-radius: 14px !important;
+    box-shadow: none !important;
+  }
+
+  .step-indicator-v2 {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .step-connector {
+    display: block !important;
+  }
+
+  .form-step {
+    width: 100% !important;
+    min-height: 0 !important;
+    padding: 1.35rem !important;
+    background: #fff !important;
+    border: 1px solid #dbe7df !important;
+    border-radius: 14px !important;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.05) !important;
+  }
+
+  .field-grid,
+  .address-confirm-grid,
+  .upload-buttons {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 1rem !important;
+  }
+
+  .step-nav {
+    position: static !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+    gap: 0.75rem !important;
+    margin-top: 1rem !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+
+  .step-nav-button.back {
+    width: auto !important;
+  }
+
+  .step-nav-button.next,
+  .step-nav-button.submit-btn {
+    width: min(100%, 280px) !important;
+  }
+
+  .my-inquiries-screen,
+  .customer-dashboard-view {
+    display: grid !important;
+    grid-template-columns: minmax(320px, 0.75fr) minmax(420px, 1fr);
+    align-items: start;
+    gap: clamp(2rem, 5vw, 4rem) !important;
+    padding-top: 2rem !important;
+    padding-bottom: 3rem !important;
+  }
+
+  .customer-workspace {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 1rem !important;
+    align-self: start;
+    min-width: 0;
+  }
+
+  .customer-workspace > * {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+  }
+
+  .customer-workspace > .auth-panel {
+    padding: 0 !important;
+  }
+
+  .my-inquiries-screen .screen-heading,
+  .customer-dashboard-view .screen-heading {
+    position: sticky;
+    top: 110px;
+    align-self: start;
+  }
+
+  .screen-heading h1 {
+    max-width: 10ch !important;
+    font-size: clamp(3.4rem, 5.8vw, 6rem) !important;
+    line-height: 0.96 !important;
+  }
+
+  .screen-heading p {
+    max-width: 560px !important;
+    font-size: 1.05rem !important;
+    line-height: 1.6 !important;
+  }
+
+  .my-inquiries-screen .recent-inquiries,
+  .customer-dashboard-view .recent-inquiries,
+  .customer-mini-panel,
+  .customer-profile-card {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    align-self: start;
+  }
+
+  .recent-inquiries {
+    padding: 1.2rem !important;
+    background: #fff !important;
+    border: 1px solid #dbe7df !important;
+    border-radius: 14px !important;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.05) !important;
+  }
+
+  .recent-list {
+    display: grid !important;
+    gap: 0.9rem !important;
+  }
+
+  .customer-inquiry-card {
+    padding: 1.1rem !important;
+    border-radius: 12px !important;
+    box-shadow: none !important;
+  }
+}
+
+@media (min-width: 1200px) {
+  .hero-section,
+  .truck-section,
+  .inquiry-section,
+  .app-screen,
+  .customer-dashboard-view,
+  .home-next-actions,
+  .site-footer {
+    width: min(100% - 4rem, 1240px) !important;
+    max-width: 1240px !important;
+  }
+}
+
+/* Senior-friendly customer tracking on phones: show the map early, make text
+   larger, and keep the card flow simple for non-technical users. */
+@media (max-width: 768px) {
+  .recent-inquiries {
+    padding: 0.65rem !important;
+    border-radius: 12px !important;
+    box-shadow: none !important;
+  }
+
+  .recent-list {
+    gap: 0.75rem !important;
+  }
+
+  .customer-inquiry-card {
+    gap: 0.65rem !important;
+    padding: 0.75rem !important;
+    border-radius: 12px !important;
+    box-shadow: none !important;
+  }
+
+  .customer-inquiry-head {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.45rem !important;
+    align-items: start !important;
+  }
+
+  .customer-inquiry-ref {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .customer-inquiry-ref > span {
+    font-size: 0.82rem !important;
+    line-height: 1.2;
+  }
+
+  .customer-status-pill {
+    width: fit-content;
+    min-height: 32px !important;
+    padding: 0.45rem 0.75rem !important;
+    font-size: 0.72rem !important;
+  }
+
+  .customer-inquiry-card > strong {
+    font-size: 1.08rem !important;
+    line-height: 1.32 !important;
+  }
+
+  .customer-inquiry-card small,
+  .customer-inquiry-card p,
+  .customer-inquiry-card em {
+    font-size: 0.92rem !important;
+    line-height: 1.45 !important;
+  }
+
+  .customer-card-meta {
+    grid-template-columns: 1fr !important;
+    gap: 0.45rem !important;
+  }
+
+  .customer-card-meta div {
+    grid-template-columns: 82px minmax(0, 1fr) !important;
+    padding: 0.6rem 0.7rem !important;
+    border-radius: 8px !important;
+  }
+
+  .customer-map-toggle-btn {
+    min-height: 52px !important;
+    margin-top: 0.35rem !important;
+    padding: 0.8rem 0.95rem !important;
+    border-radius: 10px !important;
+    font-size: 0.96rem !important;
+    justify-content: space-between !important;
+  }
+
+  .customer-details-collapse {
+    display: grid;
+    gap: 0.7rem !important;
+    margin-top: 0.65rem !important;
+    margin-inline: 0 !important;
+  }
+
+  .customer-details-collapse .route-live-map {
+    margin-top: 0 !important;
+  }
+
+  .customer-details-collapse .route-live-map-head {
+    display: none !important;
+  }
+
+  .customer-details-collapse .route-gps-meta,
+  .customer-details-collapse .route-driver-location {
+    display: none !important;
+  }
+
+  .customer-details-collapse .route-live-map-shell {
+    height: min(62dvh, 390px) !important;
+    min-height: 320px !important;
+    border-radius: 10px !important;
+  }
+
+  .customer-details-collapse .customer-lifecycle-strip,
+  .customer-details-collapse .customer-status-timeline,
+  .customer-details-collapse .customer-location-note {
+    margin-top: 0 !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .inquiry-section {
+    grid-template-columns: minmax(320px, 0.72fr) minmax(540px, 1fr) !important;
+    grid-auto-flow: row;
+    align-items: start !important;
+    gap: 1.25rem 2rem !important;
+  }
+
+  .inquiry-heading {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0.85rem !important;
+    align-self: start !important;
+  }
+
+  .inquiry-heading .eyebrow,
+  .inquiry-heading h2,
+  .inquiry-heading > p,
+  .inquiry-auth-slot {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+  }
+
+  .inquiry-heading h2 {
+    max-width: 8.8ch !important;
+    font-size: clamp(3rem, 4.6vw, 4.8rem) !important;
+  }
+
+  .inquiry-auth-slot {
+    width: 100% !important;
+    margin-top: 0.5rem !important;
+  }
+
+  .backend-required {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+  }
+
+  .step-progress {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+  }
+
+  .inquiry-workspace {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 1rem !important;
+    align-self: start !important;
+    min-width: 0;
+  }
+
+  .inquiry-workspace > * {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .inquiry-workspace > .backend-required {
+    order: 0;
+  }
+
+  .inquiry-workspace > .step-progress {
+    order: 1;
+  }
+
+  .inquiry-workspace > .inquiry-form {
+    order: 2;
+  }
+
+  .inquiry-workspace > .inquiry-summary {
+    order: 3;
+  }
+
+  .inquiry-workspace > .recent-inquiries {
+    order: 4;
+  }
+
+  .inquiry-form {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+  }
+
+  .inquiry-summary {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+  }
+
+  .inquiry-workspace > .recent-inquiries {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+  }
+}
+
+.customer-map-section {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.35rem;
+}
+
+.customer-updates-section {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.35rem;
+}
+
+@media (max-width: 768px) {
+  .customer-map-section {
+    gap: 0.7rem !important;
+    margin-top: 0.45rem !important;
+  }
+
+  .customer-updates-section {
+    gap: 0.65rem !important;
+    margin-top: 0.2rem !important;
+  }
+
+  .customer-map-section .route-live-map {
+    margin-top: 0 !important;
+  }
+
+  .customer-map-section .route-live-map-head {
+    display: none !important;
+  }
+
+  .customer-map-section .route-gps-meta,
+  .customer-map-section .route-driver-location {
+    display: none !important;
+  }
+
+  .customer-map-section .route-live-map-shell {
+    height: min(62dvh, 390px) !important;
+    min-height: 320px !important;
+    border-radius: 10px !important;
+  }
+
+  .customer-map-section .customer-lifecycle-strip,
+  .customer-map-section .customer-status-timeline,
+  .customer-map-section .customer-location-note {
+    margin-top: 0 !important;
+  }
+
+  .customer-updates-section .customer-lifecycle-strip,
+  .customer-updates-section .customer-status-timeline,
+  .customer-updates-section .customer-location-note {
+    margin-top: 0 !important;
   }
 }

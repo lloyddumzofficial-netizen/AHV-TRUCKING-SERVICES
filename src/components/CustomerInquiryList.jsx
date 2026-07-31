@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Check, ChevronDown, ClipboardList, ClipboardCopy, MapPin, RefreshCw, Route, Save, Search, X } from 'lucide-react';
+import { Check, ClipboardList, ClipboardCopy, MapPin, RefreshCw, Route, Save, Search, X } from 'lucide-react';
 import { INQUIRY_STATUS_HELP, INQUIRY_STATUS_LABELS } from '../data/inquiryStatus.js';
 import { getInquiries, updateInquiryLocations } from '../lib/inquiries/api.js';
 import { calculateDistanceKm } from '../lib/inquiries/distance.js';
@@ -18,7 +18,7 @@ const RouteDisplayMap = dynamic(() => import('./RouteDisplayMap.jsx'), {
   // Same clamp as the loaded map, so there is no layout shift when it swaps in.
   // This was 100px against a ~280px map.
   loading: () => (
-    <div className="map-loading" style={{ height: 'clamp(220px, 42vh, 420px)' }}>
+    <div className="map-loading" style={{ height: 'clamp(360px, 58vh, 560px)' }}>
       Loading Route Map...
     </div>
   ),
@@ -213,7 +213,6 @@ function CustomerInquiryCard({ inquiry, session, showTimeline = false, onSaved }
   );
   const currentStepIndex = visibleSteps.includes(inquiryStatus) ? visibleSteps.indexOf(inquiryStatus) : 0;
   const [isCorrectingLocation, setIsCorrectingLocation] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
   const [copied, setCopied] = useState(false);
   const canCorrectLocation = showTimeline && CORRECTABLE_STATUSES.includes(inquiryStatus);
 
@@ -258,6 +257,25 @@ function CustomerInquiryCard({ inquiry, session, showTimeline = false, onSaved }
         <Route size={14} />
         {distance?.toLocaleString() || 'No'} km • {cargo}
       </small>
+
+      <div className="customer-map-section">
+        <RouteDisplayMap
+          pickup={pickupPoint}
+          delivery={deliveryPoint}
+          status={inquiryStatus}
+          driverLat={inquiry.driver_lat}
+          driverLng={inquiry.driver_lng}
+          driverLocation={inquiry.driver_location}
+          driverAccuracy={inquiry.driver_accuracy_m}
+          driverSpeedKph={inquiry.driver_speed_kph}
+          driverHeading={inquiry.driver_heading}
+          driverUpdatedAt={inquiry.driver_updated_at}
+          driverFixAt={inquiry.driver_fix_at}
+          driverTrackingActive={inquiry.driver_tracking_active}
+          inquiryReference={inquiry.reference}
+        />
+      </div>
+
       <div className="customer-card-meta" aria-label="Inquiry quick details">
         <div>
           <span>Quote</span>
@@ -268,104 +286,74 @@ function CustomerInquiryCard({ inquiry, session, showTimeline = false, onSaved }
           <strong>{formatShortDate(inquiry.target_pickup_date)}</strong>
         </div>
         <div>
-          <span>GPS</span>
+          <span>Truck</span>
           <strong>{getTrackingLabel(inquiry)}</strong>
         </div>
       </div>
       <p>{INQUIRY_STATUS_HELP[inquiryStatus] || 'AHV is reviewing your request.'}</p>
       <em>Latest update: {formatInquiryDate(latestHistory?.created_at || inquiry.updated_at || inquiry.created_at)}</em>
 
-      <div className="customer-map-toggle-container">
-        <button 
-          type="button" 
-          className="customer-map-toggle-btn"
-          onClick={() => setShowDetails(!showDetails)}
-          aria-expanded={showDetails}
-        >
-          <span>{showDetails ? 'Hide Details' : 'View Full Details & Map'}</span>
-          <ChevronDown size={17} className={showDetails ? 'is-open' : ''} />
-        </button>
+      <div className="customer-updates-section">
+        {showTimeline && (
+          <div className="customer-location-note">
+            <MapPin size={16} />
+            <span>
+              {canCorrectLocation
+                ? 'Wrong pickup or delivery? You can still correct it before quote/schedule.'
+                : 'Location changes are locked for this stage. Contact AHV admin if this needs correction.'}
+            </span>
+          </div>
+        )}
 
-        {showDetails && (
-          <div className="customer-details-collapse">
-            {showTimeline && (
-              <div className="customer-location-note">
-                <MapPin size={16} />
-                <span>
-                  {canCorrectLocation
-                    ? 'Wrong pickup or delivery? You can still correct it before quote/schedule.'
-                    : 'Location changes are locked for this stage. Contact AHV admin if this needs correction.'}
+        {canCorrectLocation && !isCorrectingLocation && (
+          <button className="location-correction-toggle" type="button" onClick={() => setIsCorrectingLocation(true)}>
+            <MapPin size={16} />
+            Correct pickup/delivery
+          </button>
+        )}
+
+        {isCorrectingLocation && (
+          <LocationCorrectionForm
+            inquiry={inquiry}
+            session={session}
+            onCancel={() => setIsCorrectingLocation(false)}
+            onSaved={onSaved}
+          />
+        )}
+
+        {showTimeline && (
+          <>
+            <div className="customer-lifecycle-strip" aria-label="Inquiry progress">
+              {visibleSteps.map((step, index) => (
+                <span key={step} className={index <= currentStepIndex ? 'active' : ''}>
+                  {INQUIRY_STATUS_LABELS[step]}
                 </span>
-              </div>
-            )}
+              ))}
+            </div>
 
-            {canCorrectLocation && !isCorrectingLocation && (
-              <button className="location-correction-toggle" type="button" onClick={() => setIsCorrectingLocation(true)}>
-                <MapPin size={16} />
-                Correct pickup/delivery
-              </button>
-            )}
-
-            {isCorrectingLocation && (
-              <LocationCorrectionForm
-                inquiry={inquiry}
-                session={session}
-                onCancel={() => setIsCorrectingLocation(false)}
-                onSaved={onSaved}
-              />
-            )}
-
-            {showTimeline && (
-              <>
-                <div className="customer-lifecycle-strip" aria-label="Inquiry progress">
-                  {visibleSteps.map((step, index) => (
-                    <span key={step} className={index <= currentStepIndex ? 'active' : ''}>
-                      {INQUIRY_STATUS_LABELS[step]}
-                    </span>
-                  ))}
+            <div className="customer-status-timeline">
+              {timeline.map((item) => (
+                <div key={item.id || `${item.status}-${item.created_at}`}>
+                  <span />
+                  <strong>{INQUIRY_STATUS_LABELS[item.status] || item.status}</strong>
+                  <small>{formatInquiryDate(item.created_at)}</small>
+                  {item.notes && <p>{item.notes}</p>}
                 </div>
+              ))}
+            </div>
+          </>
+        )}
 
-                <div className="customer-status-timeline">
-                  {timeline.map((item) => (
-                    <div key={item.id || `${item.status}-${item.created_at}`}>
-                      <span />
-                      <strong>{INQUIRY_STATUS_LABELS[item.status] || item.status}</strong>
-                      <small>{formatInquiryDate(item.created_at)}</small>
-                      {item.notes && <p>{item.notes}</p>}
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
-            <RouteDisplayMap
-              pickup={pickupPoint}
-              delivery={deliveryPoint}
-              status={inquiryStatus}
-              driverLat={inquiry.driver_lat}
-              driverLng={inquiry.driver_lng}
-              driverLocation={inquiry.driver_location}
-              driverAccuracy={inquiry.driver_accuracy_m}
-              driverSpeedKph={inquiry.driver_speed_kph}
-              driverHeading={inquiry.driver_heading}
-              driverUpdatedAt={inquiry.driver_updated_at}
-              driverFixAt={inquiry.driver_fix_at}
-              driverTrackingActive={inquiry.driver_tracking_active}
-              inquiryReference={inquiry.reference}
-            />
-
-            {showTimeline && Number(inquiry.quoted_price) > 0 && (
-              <div className="customer-quote-box">
-                <span>Quoted price</span>
-                <strong>
-                  {new Intl.NumberFormat('en-PH', {
-                    style: 'currency',
-                    currency: 'PHP',
-                    maximumFractionDigits: 0,
-                  }).format(Number(inquiry.quoted_price))}
-                </strong>
-              </div>
-            )}
+        {showTimeline && Number(inquiry.quoted_price) > 0 && (
+          <div className="customer-quote-box">
+            <span>Quoted price</span>
+            <strong>
+              {new Intl.NumberFormat('en-PH', {
+                style: 'currency',
+                currency: 'PHP',
+                maximumFractionDigits: 0,
+              }).format(Number(inquiry.quoted_price))}
+            </strong>
           </div>
         )}
       </div>

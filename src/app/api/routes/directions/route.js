@@ -58,19 +58,25 @@ export async function GET(request) {
     alternatives: 'false',
   });
 
-  const response = await fetch(`${OSRM_ROUTE_URL}/${coordinates}?${params.toString()}`, {
-    headers: {
-      Accept: 'application/json',
-      'User-Agent': 'AHV-Trucking-Services/1.0 local logistics inquiry app',
-    },
-    next: { revalidate: 3600 },
-  });
+  let response;
+
+  try {
+    response = await fetch(`${OSRM_ROUTE_URL}/${coordinates}?${params.toString()}`, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'AHV-Trucking-Services/1.0 local logistics inquiry app',
+      },
+      next: { revalidate: 3600 },
+    });
+  } catch {
+    return NextResponse.json({ error: 'Road route is temporarily unavailable.' }, { status: 502 });
+  }
 
   if (!response.ok) {
     return NextResponse.json({ error: 'Road route is temporarily unavailable.' }, { status: 502 });
   }
 
-  const payload = await response.json();
+  const payload = await response.json().catch(() => ({}));
   const route = payload.routes?.[0];
 
   if (!route?.geometry?.coordinates?.length) {

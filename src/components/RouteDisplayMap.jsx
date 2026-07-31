@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
-import { LocateFixed } from 'lucide-react';
+import { LocateFixed, Navigation } from 'lucide-react';
 import { getSupabaseBrowserClient } from '../lib/supabase/client.js';
 import { escapeHtml } from '../lib/security/sanitize.js';
 import { fixAge, formatAge, isFixFresh } from '../lib/gps/tracking.js';
@@ -17,23 +17,26 @@ const MARKER_ANIMATION_MS = 600;
 function createMarkerIcon(color, size = 18) {
   return L.divIcon({
     className: '',
-    html: `<div style="width:${size}px;height:${size}px;background:${escapeHtml(color)};border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>`,
+    html: `<div style="width:${size}px;height:${size}px;background:${escapeHtml(color)};border-radius:50%;border:3px solid rgba(255,255,255,.9);box-shadow:0 0 0 8px rgba(255,255,255,.12),0 12px 24px rgba(0,0,0,.38);"></div>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   });
 }
 
-function createTruckIcon(isLive = false) {
+function createTruckIcon(isLive = false, heading = null) {
+  const rotation = Number.isFinite(Number(heading)) ? Number(heading) : 0;
+
   return L.divIcon({
     className: '',
-    html: `<div style="position:relative;background:${isLive ? '#16a34a' : '#111827'};color:white;width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(0,0,0,0.35);border:3px solid white; transition: all 0.3s ease;">
-      ${isLive ? '<span style="position:absolute;inset:-10px;border-radius:50%;border:2px solid rgba(22,163,74,.4);animation:pulseGps 1.5s infinite;"></span>' : ''}
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+    html: `<div style="position:relative;width:52px;height:52px;display:flex;align-items:center;justify-content:center;">
+      ${isLive ? '<span style="position:absolute;inset:-12px;border-radius:50%;border:2px solid rgba(34,197,94,.42);animation:pulseGps 1.5s infinite;"></span>' : ''}
+      <span style="position:absolute;inset:5px;border-radius:50%;background:${isLive ? 'linear-gradient(135deg,#22c55e,#0f766e)' : 'linear-gradient(135deg,#111827,#334155)'};box-shadow:0 18px 34px rgba(0,0,0,.5),0 0 24px rgba(249,115,22,.45);border:3px solid rgba(255,255,255,.94);"></span>
+      <svg style="position:relative;transform:rotate(${rotation}deg);filter:drop-shadow(0 2px 5px rgba(0,0,0,.35));" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 2l7 19-7-4-7 4 7-19z"/>
       </svg>
     </div>`,
-    iconSize: [42, 42],
-    iconAnchor: [21, 21],
+    iconSize: [52, 52],
+    iconAnchor: [26, 26],
   });
 }
 
@@ -117,6 +120,7 @@ function RouteDisplayMap({
   }));
 
   const [isAutoTracking, setIsAutoTracking] = useState(true);
+  const [isImmersive, setIsImmersive] = useState(true);
   const [realtimeStatus, setRealtimeStatus] = useState('connecting');
   const [, setFreshnessTick] = useState(0);
 
@@ -234,7 +238,7 @@ function RouteDisplayMap({
     if (mapRef.current || !mapElementRef.current) return undefined;
 
     const map = L.map(mapElementRef.current, {
-      zoomControl: true,
+      zoomControl: false,
       dragging: true,
       touchZoom: true,
       doubleClickZoom: true,
@@ -286,10 +290,10 @@ function RouteDisplayMap({
     const pLatLng = [pickupLat, pickupLng];
     const dLatLng = [deliveryLat, deliveryLng];
 
-    const pMarker = L.marker(pLatLng, { icon: createMarkerIcon('#16a34a', 20) })
+    const pMarker = L.marker(pLatLng, { icon: createMarkerIcon('#22c55e', 22) })
       .bindTooltip('Pickup', { direction: 'top' })
       .addTo(map);
-    const dMarker = L.marker(dLatLng, { icon: createMarkerIcon('#ef4444', 20) })
+    const dMarker = L.marker(dLatLng, { icon: createMarkerIcon('#ef4444', 22) })
       .bindTooltip('Delivery', { direction: 'top' })
       .addTo(map);
 
@@ -312,17 +316,46 @@ function RouteDisplayMap({
 
       routePointsRef.current = routePoints;
 
-      const polyline = routePoints
-        ? L.polyline(routePoints, { color: '#16a34a', weight: 6, opacity: 0.8 })
-        : L.polyline([pLatLng, dLatLng], {
-            color: '#16a34a',
-            weight: 4,
-            dashArray: '8, 8',
-            opacity: 0.6,
-          });
+      const linePoints = routePoints || [pLatLng, dLatLng];
+      const routeStyle = routePoints
+        ? {}
+        : {
+            dashArray: '12, 10',
+          };
+      const routeShadow = L.polyline(linePoints, {
+        color: '#ffffff',
+        weight: 18,
+        opacity: 0.92,
+        lineCap: 'round',
+        lineJoin: 'round',
+        ...routeStyle,
+      }).addTo(map);
+      const routeGlow = L.polyline(linePoints, {
+        color: '#f97316',
+        weight: 13,
+        opacity: 0.24,
+        lineCap: 'round',
+        lineJoin: 'round',
+        ...routeStyle,
+      }).addTo(map);
+      const routeCore = L.polyline(linePoints, {
+        color: '#fb923c',
+        weight: 7,
+        opacity: 0.94,
+        lineCap: 'round',
+        lineJoin: 'round',
+        ...routeStyle,
+      }).addTo(map);
+      const routeHighlight = L.polyline(linePoints, {
+        color: '#fed7aa',
+        weight: 2,
+        opacity: 0.75,
+        lineCap: 'round',
+        lineJoin: 'round',
+        ...routeStyle,
+      }).addTo(map);
 
-      polyline.addTo(map);
-      routeLayersRef.current.push(polyline);
+      routeLayersRef.current.push(routeShadow, routeGlow, routeCore, routeHighlight);
     })();
 
     return () => {
@@ -373,7 +406,7 @@ function RouteDisplayMap({
 
     if (!truckMarkerRef.current) {
       truckMarkerRef.current = L.marker(truckLatLng, {
-        icon: createTruckIcon(isLive),
+        icon: createTruckIcon(isLive, live.heading),
         zIndexOffset: 1000,
       }).addTo(map);
       // Text node, not a string: Leaflet assigns string content via innerHTML,
@@ -381,7 +414,7 @@ function RouteDisplayMap({
       truckMarkerRef.current.bindTooltip(document.createTextNode(label), { direction: 'top' });
     } else {
       const marker = truckMarkerRef.current;
-      marker.setIcon(createTruckIcon(isLive));
+      marker.setIcon(createTruckIcon(isLive, live.heading));
       marker.setTooltipContent(document.createTextNode(label));
 
       // Glide to the new position instead of teleporting.
@@ -435,6 +468,9 @@ function RouteDisplayMap({
         // panTo, not setView(_, 15): hard-locking the zoom meant the user could
         // never follow the truck while zoomed out.
         map.panTo(truckLatLng, { animate: true });
+        if (isImmersive && map.getZoom() < 15) {
+          map.setZoom(15, { animate: true });
+        }
       } else if (!hasFittedRef.current) {
         map.fitBounds(
           L.latLngBounds([[pickupLat, pickupLng], [deliveryLat, deliveryLng], truckLatLng]),
@@ -450,6 +486,7 @@ function RouteDisplayMap({
     live.lng,
     live.active,
     live.fixAt,
+    live.heading,
     live.location,
     status,
     pickupLat,
@@ -457,13 +494,28 @@ function RouteDisplayMap({
     deliveryLat,
     deliveryLng,
     isAutoTracking,
+    isImmersive,
   ]);
 
   const handleTrackClick = () => {
     setIsAutoTracking(true);
     if (mapRef.current && driverCoordValid) {
-      mapRef.current.panTo([live.lat, live.lng], { animate: true });
+      mapRef.current.setView([live.lat, live.lng], isImmersive ? Math.max(mapRef.current.getZoom(), 15) : mapRef.current.getZoom(), {
+        animate: true,
+      });
     }
+  };
+
+  const toggleImmersive = () => {
+    setIsImmersive((current) => !current);
+    window.setTimeout(() => mapRef.current?.invalidateSize(), 180);
+  };
+
+  const zoomBy = (delta) => {
+    const map = mapRef.current;
+    if (!map) return;
+    setIsAutoTracking(false);
+    map.setZoom(map.getZoom() + delta, { animate: true });
   };
 
   // Nothing to draw without both endpoints. Number() of a missing coordinate is
@@ -493,7 +545,7 @@ function RouteDisplayMap({
     }
   }
 
-  const mapHeight = height || 'clamp(220px, 42vh, 420px)';
+  const mapHeight = height || 'clamp(360px, 58vh, 560px)';
 
   return (
     <div className="route-live-map">
@@ -521,9 +573,33 @@ function RouteDisplayMap({
         </p>
       )}
 
-      <div className="route-live-map-shell" style={{ height: mapHeight }}>
-        <div ref={mapElementRef} className="route-live-map-frame" />
+      <div
+        className={isImmersive ? 'route-live-map-shell is-immersive' : 'route-live-map-shell'}
+        style={{ height: mapHeight }}
+      >
+        <div className="route-map-stage">
+          <div ref={mapElementRef} className="route-live-map-frame" />
+        </div>
+        <div className="route-map-vignette" aria-hidden="true" />
 
+        <button
+          type="button"
+          className={isImmersive ? 'route-view-btn active' : 'route-view-btn'}
+          onClick={toggleImmersive}
+          title={isImmersive ? 'Switch to flat map' : 'Switch to 3D navigation view'}
+          aria-label={isImmersive ? 'Switch to flat map' : 'Switch to 3D navigation view'}
+        >
+          <Navigation size={17} />
+          <span>{isImmersive ? '3D' : '2D'}</span>
+        </button>
+        <div className="route-zoom-controls" aria-label="Map zoom controls">
+          <button type="button" onClick={() => zoomBy(1)} aria-label="Zoom in">
+            +
+          </button>
+          <button type="button" onClick={() => zoomBy(-1)} aria-label="Zoom out">
+            -
+          </button>
+        </div>
         {driverCoordValid && (
           <button
             type="button"

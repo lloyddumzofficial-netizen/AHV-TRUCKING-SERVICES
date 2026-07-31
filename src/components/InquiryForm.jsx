@@ -254,43 +254,44 @@ function InquiryForm({ onInquirySubmit, submittedInquiry, session, setSession, p
         </div>
       </div>
 
-      {!session && (
-        <div className="backend-required">
-          <LockKeyhole size={18} />
-          <span>Sign in above to submit a trucking inquiry to the live backend.</span>
-        </div>
-      )}
+      <div className="inquiry-workspace">
+        {!session && (
+          <div className="backend-required">
+            <LockKeyhole size={18} />
+            <span>Sign in above to submit a trucking inquiry to the live backend.</span>
+          </div>
+        )}
 
-      {session && !profileComplete && (
-        <div className="backend-required">
-          <LockKeyhole size={18} />
-          <span>Complete the required profile onboarding before submitting a trucking inquiry.</span>
-        </div>
-      )}
+        {session && !profileComplete && (
+          <div className="backend-required">
+            <LockKeyhole size={18} />
+            <span>Complete the required profile onboarding before submitting a trucking inquiry.</span>
+          </div>
+        )}
 
-      {/* Progress Indicator */}
-      <div className="step-progress">
-        <div className="step-indicator-v2">
-          {STEP_META.map(({ step, label, icon: Icon }, idx) => (
-            <div key={step} className={`step-pip ${currentStep >= step ? 'active' : ''} ${currentStep === step ? 'current' : ''}`}>
-              {idx > 0 && (
-                <div className="step-connector">
-                  <div className="step-connector-fill" style={{ width: currentStep > step - 1 ? '100%' : '0%' }} />
-                </div>
-              )}
-              <div className="step-pip-circle">
-                <Icon size={14} />
-                {step === 4 && images.length > 0 && (
-                  <span className="step-pip-badge">{images.length}</span>
+        {/* Progress Indicator */}
+        <div className="step-progress">
+          <div className="step-indicator-v2">
+            {STEP_META.map(({ step, label, icon: Icon }, idx) => (
+              <div key={step} className={`step-pip ${currentStep >= step ? 'active' : ''} ${currentStep === step ? 'current' : ''}`}>
+                {idx > 0 && (
+                  <div className="step-connector">
+                    <div className="step-connector-fill" style={{ width: currentStep > step - 1 ? '100%' : '0%' }} />
+                  </div>
                 )}
+                <div className="step-pip-circle">
+                  <Icon size={14} />
+                  {step === 4 && images.length > 0 && (
+                    <span className="step-pip-badge">{images.length}</span>
+                  )}
+                </div>
+                <span className="step-pip-label">{label}</span>
               </div>
-              <span className="step-pip-label">{label}</span>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
 
-      <form className="inquiry-form" onSubmit={handleSubmit}>
+        <form className="inquiry-form" onSubmit={handleSubmit}>
         {currentStep === 1 && (
           <section className="form-step">
             <div className="step-title">
@@ -589,111 +590,112 @@ function InquiryForm({ onInquirySubmit, submittedInquiry, session, setSession, p
             {submitStatus}
           </div>
         )}
-      </form>
+        </form>
 
-      {/* SUCCESS MODAL OVERLAY */}
-      {showSuccessModal && (
-        <div className="profile-modal-backdrop success-modal-backdrop">
-          <section
-            ref={successModalRef}
-            tabIndex={-1}
-            className="profile-panel onboarding-modal success-modal-card"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="inquiry-success-title"
-          >
-            <div className="success-modal-icon">
-              <CheckCircle2 size={40} />
-            </div>
-            <p className="success-modal-eyebrow">Saved to AHV dispatch</p>
-            <h2 id="inquiry-success-title">Inquiry submitted</h2>
-            <p>
-              Your request is now in the AHV operations queue. Keep this reference so you can track quote, pickup, and delivery updates.
-            </p>
+        {/* SUCCESS MODAL OVERLAY */}
+        {showSuccessModal && (
+          <div className="profile-modal-backdrop success-modal-backdrop">
+            <section
+              ref={successModalRef}
+              tabIndex={-1}
+              className="profile-panel onboarding-modal success-modal-card"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="inquiry-success-title"
+            >
+              <div className="success-modal-icon">
+                <CheckCircle2 size={40} />
+              </div>
+              <p className="success-modal-eyebrow">Saved to AHV dispatch</p>
+              <h2 id="inquiry-success-title">Inquiry submitted</h2>
+              <p>
+                Your request is now in the AHV operations queue. Keep this reference so you can track quote, pickup, and delivery updates.
+              </p>
 
-            <div className="success-reference-card">
-              <span>Tracking reference</span>
-              <strong>{submittedInquiry?.reference || 'Generating...'}</strong>
-              <button type="button" onClick={copySubmittedReference} disabled={!submittedInquiry?.reference}>
-                <ClipboardCopy size={16} />
-                {copiedReference ? 'Copied' : 'Copy'}
-              </button>
+              <div className="success-reference-card">
+                <span>Tracking reference</span>
+                <strong>{submittedInquiry?.reference || 'Generating...'}</strong>
+                <button type="button" onClick={copySubmittedReference} disabled={!submittedInquiry?.reference}>
+                  <ClipboardCopy size={16} />
+                  {copiedReference ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+
+              <div className="success-modal-actions">
+                <button
+                  type="button"
+                  className="success-primary-action"
+                  onClick={() => {
+                    setShowSuccessModal(false);
+                    onTrackInquiry?.(submittedInquiry?.reference);
+                  }}
+                  disabled={!submittedInquiry?.reference || !onTrackInquiry}
+                >
+                  Track this inquiry
+                </button>
+                <button 
+                  type="button" 
+                  className="success-secondary-action"
+                  onClick={() => {
+                    setShowSuccessModal(false);
+                    onViewMyInquiries?.();
+                  }}
+                >
+                  Go to My Requests
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
+
+        {submittedInquiry && (
+          <section className="inquiry-summary" id="inquiry-summary">
+            <div className="summary-title">
+              <CheckCircle2 size={22} />
+              <div>
+                <span>{submittedInquiry.reference}</span>
+                <h3>Inquiry summary</h3>
+              </div>
             </div>
 
-            <div className="success-modal-actions">
-              <button
-                type="button"
-                className="success-primary-action"
-                onClick={() => {
-                  setShowSuccessModal(false);
-                  onTrackInquiry?.(submittedInquiry?.reference);
-                }}
-                disabled={!submittedInquiry?.reference || !onTrackInquiry}
-              >
-                Track this inquiry
-              </button>
-              <button 
-                type="button" 
-                className="success-secondary-action"
-                onClick={() => {
-                  setShowSuccessModal(false);
-                  onViewMyInquiries?.();
-                }}
-              >
-                Go to My Requests
-              </button>
+            <div className="status-strip">
+              <span>Saved live</span>
+              <span>Needs dispatcher review</span>
+              <span>Truck fit: Isuzu Giga Wingvan</span>
             </div>
+
+            <div className="summary-grid">
+              <p><strong>Name:</strong> {submittedInquiry.name}</p>
+              <p><strong>Phone:</strong> {submittedInquiry.phone}</p>
+              <p><strong>Pickup:</strong> {submittedInquiry.pickupAddress}</p>
+              <p><strong>Delivery:</strong> {submittedInquiry.deliveryAddress}</p>
+              <p><strong>Cargo:</strong> {submittedInquiry.cargoType}</p>
+              <p><strong>Weight:</strong> {submittedInquiry.weight || 'Not specified'} kg</p>
+              <p><strong>Quantity:</strong> {submittedInquiry.quantity}</p>
+              <p><strong>Distance:</strong> {submittedInquiry.routeDistance?.toLocaleString() || 'Not estimated'} km</p>
+              <p><strong>Submitted:</strong> {submittedInquiry.submittedAt}</p>
+            </div>
+
+            <div className="summary-route">
+              <span>Pickup marker: {submittedInquiry.pickup.lat}, {submittedInquiry.pickup.lng}</span>
+              <span>Delivery marker: {submittedInquiry.delivery.lat}, {submittedInquiry.delivery.lng}</span>
+              <span>Ops note: AHV admins will confirm exact road, port, ferry, and receiving schedule before final quote.</span>
+            </div>
+
+            {submittedInquiry.notes && <p className="summary-notes">{submittedInquiry.notes}</p>}
+
+            {submittedInquiry.images.length > 0 && (
+              <div className="summary-images">
+                {submittedInquiry.images.map((image) => (
+                  <img key={image.url} src={image.url} alt={image.name} />
+                ))}
+              </div>
+            )}
           </section>
-        </div>
-      )}
+        )}
 
-      {submittedInquiry && (
-        <section className="inquiry-summary" id="inquiry-summary">
-          <div className="summary-title">
-            <CheckCircle2 size={22} />
-            <div>
-              <span>{submittedInquiry.reference}</span>
-              <h3>Inquiry summary</h3>
-            </div>
-          </div>
-
-          <div className="status-strip">
-            <span>Saved live</span>
-            <span>Needs dispatcher review</span>
-            <span>Truck fit: Isuzu Giga Wingvan</span>
-          </div>
-
-          <div className="summary-grid">
-            <p><strong>Name:</strong> {submittedInquiry.name}</p>
-            <p><strong>Phone:</strong> {submittedInquiry.phone}</p>
-            <p><strong>Pickup:</strong> {submittedInquiry.pickupAddress}</p>
-            <p><strong>Delivery:</strong> {submittedInquiry.deliveryAddress}</p>
-            <p><strong>Cargo:</strong> {submittedInquiry.cargoType}</p>
-            <p><strong>Weight:</strong> {submittedInquiry.weight || 'Not specified'} kg</p>
-            <p><strong>Quantity:</strong> {submittedInquiry.quantity}</p>
-            <p><strong>Distance:</strong> {submittedInquiry.routeDistance?.toLocaleString() || 'Not estimated'} km</p>
-            <p><strong>Submitted:</strong> {submittedInquiry.submittedAt}</p>
-          </div>
-
-          <div className="summary-route">
-            <span>Pickup marker: {submittedInquiry.pickup.lat}, {submittedInquiry.pickup.lng}</span>
-            <span>Delivery marker: {submittedInquiry.delivery.lat}, {submittedInquiry.delivery.lng}</span>
-                  <span>Ops note: AHV admins will confirm exact road, port, ferry, and receiving schedule before final quote.</span>
-          </div>
-
-          {submittedInquiry.notes && <p className="summary-notes">{submittedInquiry.notes}</p>}
-
-          {submittedInquiry.images.length > 0 && (
-            <div className="summary-images">
-              {submittedInquiry.images.map((image) => (
-                <img key={image.url} src={image.url} alt={image.name} />
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      <CustomerInquiryList session={session} limit={3} compact />
+        <CustomerInquiryList session={session} limit={3} compact />
+      </div>
     </section>
   );
 }

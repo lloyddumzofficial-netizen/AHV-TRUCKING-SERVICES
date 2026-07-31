@@ -26,7 +26,13 @@ export async function GET(request) {
       },
     },
   });
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  let error;
+
+  try {
+    ({ error } = await supabase.auth.exchangeCodeForSession(code));
+  } catch {
+    return NextResponse.redirect(new URL('/?auth=failed#auth', requestUrl.origin));
+  }
 
   if (error) {
     return NextResponse.redirect(new URL('/?auth=failed#auth', requestUrl.origin));

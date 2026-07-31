@@ -1,3 +1,5 @@
+import { apiFetch, bearerHeaders } from '../http/apiClient.js';
+
 export async function getInquiries(accessToken, filters = {}) {
   const params = new URLSearchParams();
 
@@ -10,18 +12,12 @@ export async function getInquiries(accessToken, filters = {}) {
   }
 
   const queryString = params.toString();
-  const response = await fetch(`/api/inquiries${queryString ? `?${queryString}` : ''}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+  return apiFetch(`/api/inquiries${queryString ? `?${queryString}` : ''}`, {
+    headers: bearerHeaders(accessToken),
     credentials: 'omit',
     cache: 'no-store',
-  });
-  const payload = await response.json();
-
-  if (!response.ok) {
-    throw new Error(payload.error || 'Could not load inquiries.');
-  }
-
-  return payload;
+    authAction: 'load inquiries',
+  }, 'Could not load inquiries.');
 }
 
 /**
@@ -32,59 +28,35 @@ export async function getInquiries(accessToken, filters = {}) {
  * upload, leaving orphaned objects in R2 on a 429.
  */
 export async function getInquiryQuota(accessToken) {
-  const response = await fetch('/api/inquiries/quota', {
-    headers: { Authorization: `Bearer ${accessToken}` },
+  return apiFetch('/api/inquiries/quota', {
+    headers: bearerHeaders(accessToken),
     credentials: 'omit',
     cache: 'no-store',
-  });
-  const payload = await response.json();
-
-  if (!response.ok) {
-    throw new Error(payload.error || 'Could not check your submission limit.');
-  }
-
-  return payload;
+    authAction: 'check your submission limit',
+  }, 'Could not check your submission limit.');
 }
 
 export async function createInquiry(accessToken, inquiry) {
-  const response = await fetch('/api/inquiries', {
+  return apiFetch('/api/inquiries', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
+    headers: bearerHeaders(accessToken, { 'Content-Type': 'application/json' }),
     credentials: 'omit',
     body: JSON.stringify(inquiry),
-  });
-  const payload = await response.json();
-
-  if (!response.ok) {
-    throw new Error(payload.error || 'Could not save inquiry.');
-  }
-
-  return payload;
+    authAction: 'save inquiry',
+  }, 'Could not save inquiry.');
 }
 
 export async function updateInquiryLocations(accessToken, reference, locations) {
-  const response = await fetch('/api/inquiries', {
+  return apiFetch('/api/inquiries', {
     method: 'PATCH',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
+    headers: bearerHeaders(accessToken, { 'Content-Type': 'application/json' }),
     credentials: 'omit',
     body: JSON.stringify({
       reference,
       ...locations,
     }),
-  });
-  const payload = await response.json();
-
-  if (!response.ok) {
-    throw new Error(payload.error || 'Could not update inquiry locations.');
-  }
-
-  return payload;
+    authAction: 'update inquiry locations',
+  }, 'Could not update inquiry locations.');
 }
 
 export async function uploadCargoImages(accessToken, reference, images) {
@@ -96,19 +68,13 @@ export async function uploadCargoImages(accessToken, reference, images) {
     formData.append('uploadType', 'cargo');
     formData.append('reference', reference);
 
-    const response = await fetch('/api/uploads', {
+    const payload = await apiFetch('/api/uploads', {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
+      headers: bearerHeaders(accessToken),
       credentials: 'omit',
       body: formData,
-    });
-    const payload = await response.json();
-
-    if (!response.ok) {
-      throw new Error(payload.error || 'Could not upload cargo image to Cloudflare R2.');
-    }
+      authAction: 'upload cargo images',
+    }, 'Could not upload cargo image to Cloudflare R2.');
 
     uploaded.push({
       key: payload.key,

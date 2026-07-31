@@ -48,11 +48,19 @@ export async function POST(request) {
   const key = `${uploadType}/${user.id}/${Date.now()}-${crypto.randomUUID()}-${filename}`;
   const body = Buffer.from(await file.arrayBuffer());
 
-  await uploadObject({
-    key,
-    contentType: file.type,
-    body,
-  });
+  try {
+    await uploadObject({
+      key,
+      contentType: file.type,
+      body,
+    });
+  } catch (uploadError) {
+    console.error('Profile/cargo image upload failed', uploadError);
+    return NextResponse.json(
+      { error: 'Image upload storage is temporarily unavailable. Please try again in a moment.' },
+      { status: 502 },
+    );
+  }
 
   return NextResponse.json({
     key,

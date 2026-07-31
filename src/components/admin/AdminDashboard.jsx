@@ -27,7 +27,7 @@ import {
   X,
 } from 'lucide-react';
 import { INQUIRY_STATUSES, INQUIRY_STATUS_LABELS } from '../../data/inquiryStatus.js';
-import { deleteAdminInquiry, getAdminInquiries, updateAdminInquiry } from '../../lib/admin/api.js';
+import { deleteAdminInquiry, generateAdminDriverLink, getAdminInquiries, updateAdminInquiry } from '../../lib/admin/api.js';
 import { getSupabaseBrowserClient } from '../../lib/supabase/client.js';
 import { formatPhilippineDateTime, toPhilippineDateTimeInput } from '../../lib/datetime.js';
 import { useModalBehavior } from '../../lib/hooks/useModalBehavior.js';
@@ -59,6 +59,14 @@ const SORT_OPTIONS = [
   { value: 'customer', label: 'Customer A-Z' },
   { value: 'status', label: 'Status' },
   { value: 'quote', label: 'Highest quote' },
+];
+
+const QUICK_FILTERS = [
+  { value: 'needs_action', label: 'Needs action' },
+  { value: 'active', label: 'Active trips' },
+  { value: 'no_quote', label: 'No quote' },
+  { value: 'unassigned', label: 'Unassigned' },
+  { value: 'gps_live', label: 'GPS live' },
 ];
 
 /** { lat, lng } for the route map, or null when either coordinate is missing. */
@@ -261,6 +269,36 @@ function sortInquiries(inquiries, sortBy) {
   });
 }
 
+function applyQuickFilter(inquiries, quickFilter) {
+  if (!quickFilter) return inquiries;
+
+  return inquiries.filter((inquiry) => {
+    const status = inquiry.status || 'new';
+
+    if (quickFilter === 'needs_action') {
+      return ['new', 'reviewing'].includes(status);
+    }
+
+    if (quickFilter === 'active') {
+      return ['scheduled', 'for_pickup', 'picked_up', 'in_transit'].includes(status);
+    }
+
+    if (quickFilter === 'no_quote') {
+      return !Number(inquiry.quoted_price);
+    }
+
+    if (quickFilter === 'unassigned') {
+      return !inquiry.assigned_admin_email;
+    }
+
+    if (quickFilter === 'gps_live') {
+      return Boolean(inquiry.driver_tracking_active) && isFixFresh(inquiry.driver_fix_at || inquiry.driver_updated_at);
+    }
+
+    return true;
+  });
+}
+
 function ToastIcon({ type }) {
   if (type === 'error') {
     return <AlertCircle size={18} />;
@@ -274,7 +312,9 @@ function ToastIcon({ type }) {
 }
 
 function AdminDashboard({ session, profile, setSession }) {
+  const [adminView, setAdminView] = useState('dashboard');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [quickFilter, setQuickFilter] = useState('');
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('newest');
   const [payload, setPayload] = useState({ counters: {}, inquiries: [], admins: [], pagination: null });
@@ -308,6 +348,7 @@ function AdminDashboard({ session, profile, setSession }) {
   const toastTimersRef = useRef([]);
   const deleteModalRef = useRef(null);
   const locationModalRef = useRef(null);
+  const searchInputRef = useRef(null);
 
   // Scroll lock + Escape + focus for both admin modals. Neither had any of it.
   useModalBehavior(Boolean(deleteTarget), {
@@ -325,8 +366,8 @@ function AdminDashboard({ session, profile, setSession }) {
   );
 
   const sortedInquiries = useMemo(
-    () => sortInquiries(payload.inquiries || [], sortBy),
-    [payload.inquiries, sortBy],
+    () => applyQuickFilter(sortInquiries(payload.inquiries || [], sortBy), quickFilter),
+    [payload.inquiries, quickFilter, sortBy],
   );
 
   // Stable identities for RouteDisplayMap. Inline object literals re-ran its
@@ -348,7 +389,7 @@ function AdminDashboard({ session, profile, setSession }) {
     totalPages: 1,
   };
 
-  const hasFilters = Boolean(search.trim() || statusFilter !== 'all');
+  const hasFilters = Boolean(search.trim() || statusFilter !== 'all' || quickFilter);
   const driverLink = selectedInquiry?.driver_tracking_token && typeof window !== 'undefined'
     ? `${window.location.origin}/driver/track/${selectedInquiry.driver_tracking_token}`
     : '';
@@ -431,7 +472,7 @@ function AdminDashboard({ session, profile, setSession }) {
 
   useEffect(() => {
     setPage(1);
-  }, [search, statusFilter]);
+  }, [quickFilter, search, statusFilter]);
 
   useEffect(() => {
     loadDashboard();
@@ -507,6 +548,31 @@ function AdminDashboard({ session, profile, setSession }) {
     setForm(createFormState(selectedInquiry));
     setDeleteTarget(null);
   }, [selectedInquiry]);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      const tagName = event.target?.tagName?.toLowerCase();
+      const isTyping = ['input', 'textarea', 'select'].includes(tagName) || event.target?.isContentEditable;
+
+      if (event.key === '/' && !isTyping) {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+
+      if (event.key === 'Escape' && selectedReference && !deleteTarget && !showLocationModal) {
+        setSelectedReference('');
+        return;
+      }
+
+      if (event.key.toLowerCase() === 'r' && !isTyping && !isLoading) {
+        loadDashboard();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [deleteTarget, isLoading, loadDashboard, selectedReference, showLocationModal]);
 
   useEffect(() => {
     const q = locationQuery;
@@ -678,22 +744,11 @@ function AdminDashboard({ session, profile, setSession }) {
   const generateDriverLink = async (reference) => {
     try {
       setGeneratingLink(true);
-      // Encoded, matching the sibling calls in lib/admin/api.js.
-      const res = await fetch(`/api/admin/inquiries/${encodeURIComponent(reference)}/driver-link`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
-
-      let data = {};
-      try {
-        data = await res.json();
-      } catch {
-        throw new Error(`Server returned a non-JSON response. Status: ${res.status}`);
+      if (!session?.access_token) {
+        throw new Error('Sign in again to generate a driver tracking link.');
       }
 
-      if (!res.ok) {
-        throw new Error(data.error || `HTTP Error ${res.status}`);
-      }
+      const data = await generateAdminDriverLink(session.access_token, reference);
 
       setPayload((current) => ({
         ...current,
@@ -718,17 +773,28 @@ function AdminDashboard({ session, profile, setSession }) {
   const copyToClipboard = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
-      addToast('success', 'Tracking link copied.');
+      addToast('success', 'Copied to clipboard.');
     } catch {
-      addToast('error', 'Could not copy tracking link.');
+      addToast('error', 'Could not copy to clipboard.');
     }
   };
 
   const clearFilters = () => {
     setSearch('');
     setStatusFilter('all');
+    setQuickFilter('');
     setSortBy('newest');
     setPage(1);
+  };
+
+  const setOperationalFilter = (filter) => {
+    setQuickFilter((current) => (current === filter ? '' : filter));
+    setPage(1);
+  };
+
+  const openAdminView = (view) => {
+    setAdminView(view);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const overviewCards = [
@@ -737,24 +803,28 @@ function AdminDashboard({ session, profile, setSession }) {
       value: payload.counters?.all || 0,
       help: 'All submitted requests',
       tone: 'ink',
+      filter: '',
     },
     {
       label: 'Pending',
       value: countStatuses(payload.counters, ['new', 'reviewing']),
       help: 'Needs review or follow-up',
       tone: 'amber',
+      filter: 'needs_action',
     },
     {
       label: 'Active bookings',
       value: countStatuses(payload.counters, ['scheduled', 'for_pickup', 'picked_up', 'in_transit']),
       help: 'Scheduled or moving cargo',
       tone: 'green',
+      filter: 'active',
     },
     {
       label: 'Resolved',
       value: payload.counters?.delivered || 0,
       help: 'Delivered inquiries',
       tone: 'blue',
+      status: 'delivered',
     },
   ];
 
@@ -780,18 +850,30 @@ function AdminDashboard({ session, profile, setSession }) {
             </div>
           </div>
           <nav>
-            <a href="#admin-overview" className="active">
+            <button
+              type="button"
+              className={adminView === 'dashboard' ? 'active' : ''}
+              onClick={() => openAdminView('dashboard')}
+            >
               <ClipboardList size={17} />
               Dashboard
-            </a>
-            <a href="#admin-inquiries">
+            </button>
+            <button
+              type="button"
+              className={adminView === 'inquiries' ? 'active' : ''}
+              onClick={() => openAdminView('inquiries')}
+            >
               <Search size={17} />
               Inquiries
-            </a>
-            <a href="#admin-sync">
+            </button>
+            <button
+              type="button"
+              className={adminView === 'realtime' ? 'active' : ''}
+              onClick={() => openAdminView('realtime')}
+            >
               <ShieldCheck size={17} />
               Realtime
-            </a>
+            </button>
           </nav>
           <div className="admin-sidebar-status" id="admin-sync">
             <span>Last synced</span>
@@ -804,8 +886,20 @@ function AdminDashboard({ session, profile, setSession }) {
           <header className="admin-console-header">
             <div>
               <p className="eyebrow">Admin operations</p>
-              <h1>Inquiries Management</h1>
-              <p>Review client requests, quote routes, coordinate drivers, and keep each shipment moving.</p>
+              <h1>
+                {adminView === 'inquiries'
+                  ? 'Inquiries Queue'
+                  : adminView === 'realtime'
+                    ? 'Realtime Monitor'
+                    : 'Inquiries Management'}
+              </h1>
+              <p>
+                {adminView === 'inquiries'
+                  ? 'Work the full client request queue with more room for scanning, filtering, and actions.'
+                  : adminView === 'realtime'
+                    ? 'Watch sync health, live GPS status, and operational counters.'
+                    : 'Review client requests, quote routes, coordinate drivers, and keep each shipment moving.'}
+              </p>
             </div>
             <div className="admin-command-bar">
               <button className="admin-refresh-button" type="button" onClick={() => loadDashboard()} disabled={isLoading}>
@@ -819,19 +913,40 @@ function AdminDashboard({ session, profile, setSession }) {
             </div>
           </header>
 
-          <section className="admin-overview-grid" id="admin-overview" aria-label="Dashboard overview">
+          {adminView === 'dashboard' && (
+            <section className="admin-overview-grid" id="admin-overview" aria-label="Dashboard overview">
             {isLoading && sortedInquiries.length === 0 ? (
               [1, 2, 3, 4].map((item) => <div className="admin-overview-card skeleton-pulse" key={item} />)
             ) : (
               overviewCards.map((card) => (
-                <article className={`admin-overview-card ${card.tone}`} key={card.label}>
+                <button
+                  type="button"
+                  className={`admin-overview-card ${card.tone} ${
+                    (card.filter && quickFilter === card.filter) || (card.status && statusFilter === card.status)
+                      ? 'active'
+                      : ''
+                  }`}
+                  key={card.label}
+                  onClick={() => {
+                    if (card.status) {
+                      setStatusFilter((current) => (current === card.status ? 'all' : card.status));
+                      setQuickFilter('');
+                      setPage(1);
+                      return;
+                    }
+
+                    setStatusFilter('all');
+                    setOperationalFilter(card.filter || '');
+                  }}
+                >
                   <span>{card.label}</span>
                   <strong>{card.value}</strong>
                   <small>{card.help}</small>
-                </article>
+                </button>
               ))
             )}
-          </section>
+            </section>
+          )}
 
           {newInquiryNotice && (
             <button
@@ -847,19 +962,49 @@ function AdminDashboard({ session, profile, setSession }) {
             </button>
           )}
 
-          <section className="admin-table-panel" id="admin-inquiries">
+          {adminView === 'realtime' && (
+            <section className="admin-realtime-page" id="admin-sync-panel">
+              <div className="admin-realtime-card">
+                <span>Realtime connection</span>
+                <strong>{liveStatus || 'Realtime starting'}</strong>
+                <p>Last successful dashboard sync: {lastSyncedAt || 'Waiting for first sync'}.</p>
+              </div>
+              <div className="admin-realtime-grid">
+                {overviewCards.map((card) => (
+                  <article className={`admin-overview-card ${card.tone}`} key={card.label}>
+                    <span>{card.label}</span>
+                    <strong>{card.value}</strong>
+                    <small>{card.help}</small>
+                  </article>
+                ))}
+              </div>
+              <div className="admin-realtime-card">
+                <span>Live GPS rows</span>
+                <strong>{applyQuickFilter(payload.inquiries || [], 'gps_live').length}</strong>
+                <p>Drivers currently reporting a fresh GPS fix in the loaded queue.</p>
+              </div>
+            </section>
+          )}
+
+          {(adminView === 'dashboard' || adminView === 'inquiries') && (
+            <section className={adminView === 'inquiries' ? 'admin-table-panel admin-table-page' : 'admin-table-panel'} id="admin-inquiries">
             <div className="admin-panel-head">
               <div>
                 <span>Inquiries</span>
                 <h2>Client requests queue</h2>
               </div>
-              <p>{pagination.total || sortedInquiries.length} total records</p>
+              <p>
+                {quickFilter
+                  ? `${sortedInquiries.length} shown from ${payload.inquiries.length} loaded`
+                  : `${pagination.total || sortedInquiries.length} total records`}
+              </p>
             </div>
 
             <div className="admin-filter-bar">
               <label className="admin-search">
                 <Search size={18} />
                 <input
+                  ref={searchInputRef}
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Search reference, client, phone, pickup, delivery, cargo"
@@ -889,6 +1034,19 @@ function AdminDashboard({ session, profile, setSession }) {
               )}
             </div>
 
+            <div className="admin-quick-filters" aria-label="Operational quick filters">
+              {QUICK_FILTERS.map((filter) => (
+                <button
+                  key={filter.value}
+                  type="button"
+                  className={quickFilter === filter.value ? 'active' : ''}
+                  onClick={() => setOperationalFilter(filter.value)}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+
             {status && (
               <p className="admin-status">
                 {(isSaving || isLoading) && <Loader2 size={16} className="spinning" />}
@@ -900,6 +1058,10 @@ function AdminDashboard({ session, profile, setSession }) {
               <span>Last synced: {lastSyncedAt || 'Not yet'}</span>
               <span>{liveStatus || 'Realtime starting'}</span>
               <span>Auto-refresh every 30 seconds</span>
+              <span>Shortcuts: / search, R refresh, Esc close</span>
+              {quickFilter && (
+                <span>Showing: {QUICK_FILTERS.find((item) => item.value === quickFilter)?.label}</span>
+              )}
             </div>
 
             <div className="admin-table-wrap">
@@ -942,7 +1104,14 @@ function AdminDashboard({ session, profile, setSession }) {
                     sortedInquiries.map((inquiry) => (
                       <tr
                         key={inquiry.reference}
-                        className={selectedInquiry?.reference === inquiry.reference ? 'selected' : ''}
+                        className={selectedInquiry?.reference === inquiry.reference ? 'selected is-clickable' : 'is-clickable'}
+                        tabIndex={0}
+                        onClick={() => setSelectedReference(inquiry.reference)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            setSelectedReference(inquiry.reference);
+                          }
+                        }}
                       >
                         <td>
                           <time>{formatDate(inquiry.created_at)}</time>
@@ -965,13 +1134,32 @@ function AdminDashboard({ session, profile, setSession }) {
                         <td>{inquiry.assigned_admin_email || 'Unassigned'}</td>
                         <td>
                           <div className="admin-row-actions">
-                            <button type="button" onClick={() => setSelectedReference(inquiry.reference)}>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setSelectedReference(inquiry.reference);
+                              }}
+                            >
                               <Eye size={15} />
                               View
                             </button>
                             <button
                               type="button"
-                              onClick={() => markAsRead(inquiry)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                copyToClipboard(inquiry.reference);
+                              }}
+                            >
+                              <Copy size={15} />
+                              Copy ref
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                markAsRead(inquiry);
+                              }}
                               disabled={isSaving || inquiry.status !== 'new'}
                             >
                               <CheckCircle2 size={15} />
@@ -980,7 +1168,10 @@ function AdminDashboard({ session, profile, setSession }) {
                             <button
                               type="button"
                               className="danger"
-                              onClick={() => setDeleteTarget(inquiry)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setDeleteTarget(inquiry);
+                              }}
                               disabled={isSaving}
                             >
                               <Trash2 size={15} />
@@ -1010,7 +1201,8 @@ function AdminDashboard({ session, profile, setSession }) {
                 <ChevronRight size={16} />
               </button>
             </div>
-          </section>
+            </section>
+          )}
         </main>
       </div>
 
@@ -1031,7 +1223,7 @@ function AdminDashboard({ session, profile, setSession }) {
         className={`admin-slide-panel ${selectedInquiry ? 'open' : ''}`}
         aria-label="Inquiry details"
         aria-hidden={selectedInquiry ? undefined : 'true'}
-        inert={selectedInquiry ? undefined : ''}
+        inert={selectedInquiry ? undefined : true}
         role={selectedInquiry ? 'dialog' : undefined}
         aria-modal={selectedInquiry ? 'true' : undefined}
       >
@@ -1061,10 +1253,17 @@ function AdminDashboard({ session, profile, setSession }) {
                   <p><strong>Weight</strong><span>{selectedInquiry.weight_kg ? `${selectedInquiry.weight_kg} kg` : 'Not set'}</span></p>
                 </div>
                 <div className="admin-detail-actions">
-                  <a href={`tel:${selectedInquiry.customer_phone || ''}`}>
-                    <PhoneCall size={15} />
-                    Call Client
-                  </a>
+                  {selectedInquiry.customer_phone ? (
+                    <a href={`tel:${selectedInquiry.customer_phone}`}>
+                      <PhoneCall size={15} />
+                      Call Client
+                    </a>
+                  ) : (
+                    <button type="button" disabled title="No client phone number saved">
+                      <PhoneCall size={15} />
+                      No phone
+                    </button>
+                  )}
                   <button type="button" onClick={rejectInquiry} disabled={isSaving || selectedInquiry.status === 'cancelled'}>
                     <Ban size={15} />
                     Reject

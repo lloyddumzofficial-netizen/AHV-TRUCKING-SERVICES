@@ -3,11 +3,38 @@
 import { useEffect, useMemo, useState } from 'react';
 import { MapPinned, Navigation } from 'lucide-react';
 
+function toCoordinate(value) {
+  const coordinate = Number(value);
+  return Number.isFinite(coordinate) ? coordinate : null;
+}
+
+function getRouteCoordinates(inquiry) {
+  if (!inquiry) {
+    return null;
+  }
+
+  const pickupLat = toCoordinate(inquiry.pickup_lat);
+  const pickupLng = toCoordinate(inquiry.pickup_lng);
+  const deliveryLat = toCoordinate(inquiry.delivery_lat);
+  const deliveryLng = toCoordinate(inquiry.delivery_lng);
+
+  if ([pickupLat, pickupLng, deliveryLat, deliveryLng].some((coordinate) => coordinate === null)) {
+    return null;
+  }
+
+  return { pickupLat, pickupLng, deliveryLat, deliveryLng };
+}
+
 function buildGoogleMapsUrl(inquiry) {
+  const coordinates = getRouteCoordinates(inquiry);
+  if (!coordinates) {
+    return '';
+  }
+
   const params = new URLSearchParams({
     api: '1',
-    origin: `${inquiry.pickup_lat},${inquiry.pickup_lng}`,
-    destination: `${inquiry.delivery_lat},${inquiry.delivery_lng}`,
+    origin: `${coordinates.pickupLat},${coordinates.pickupLng}`,
+    destination: `${coordinates.deliveryLat},${coordinates.deliveryLng}`,
     travelmode: 'driving',
   });
 
@@ -15,27 +42,35 @@ function buildGoogleMapsUrl(inquiry) {
 }
 
 function buildWazeUrl(inquiry) {
-  return `https://waze.com/ul?ll=${inquiry.delivery_lat},${inquiry.delivery_lng}&navigate=yes`;
+  const coordinates = getRouteCoordinates(inquiry);
+  if (!coordinates) {
+    return '';
+  }
+
+  return `https://waze.com/ul?ll=${coordinates.deliveryLat},${coordinates.deliveryLng}&navigate=yes`;
 }
 
 function AdminRouteTools({ inquiry }) {
   const [route, setRoute] = useState(null);
   const [status, setStatus] = useState('');
+  const routeCoordinates = useMemo(() => getRouteCoordinates(inquiry), [inquiry]);
   const routeParams = useMemo(() => {
-    if (!inquiry) {
+    if (!routeCoordinates) {
       return '';
     }
 
     return new URLSearchParams({
-      pickupLat: String(inquiry.pickup_lat),
-      pickupLng: String(inquiry.pickup_lng),
-      deliveryLat: String(inquiry.delivery_lat),
-      deliveryLng: String(inquiry.delivery_lng),
+      pickupLat: String(routeCoordinates.pickupLat),
+      pickupLng: String(routeCoordinates.pickupLng),
+      deliveryLat: String(routeCoordinates.deliveryLat),
+      deliveryLng: String(routeCoordinates.deliveryLng),
     }).toString();
-  }, [inquiry]);
+  }, [routeCoordinates]);
 
   useEffect(() => {
     if (!routeParams) {
+      setRoute(null);
+      setStatus('');
       return undefined;
     }
 
@@ -69,6 +104,10 @@ function AdminRouteTools({ inquiry }) {
     return null;
   }
 
+  const canOpenExternalRoutes = Boolean(routeCoordinates);
+  const googleMapsUrl = buildGoogleMapsUrl(inquiry);
+  const wazeUrl = buildWazeUrl(inquiry);
+
   return (
     <section className="admin-route-tools">
       <div className="admin-detail-title">
@@ -78,19 +117,44 @@ function AdminRouteTools({ inquiry }) {
 
       <div className="admin-route-summary">
         <span>{route ? route.provider : 'Free route tools'}</span>
-        <strong>{route ? `${route.distanceKm.toLocaleString()} km - ${route.durationText || 'duration unavailable'}` : status || 'Ready for route review'}</strong>
-        <small>Confirm truck access, ports, ferry routes, road restrictions, receiving schedule, and final quote manually.</small>
+        <strong>
+          {canOpenExternalRoutes
+            ? route
+              ? `${route.distanceKm.toLocaleString()} km - ${route.durationText || 'duration unavailable'}`
+              : status || 'Ready for route review'
+            : 'Set pickup and delivery coordinates first'}
+        </strong>
+        <small>
+          {canOpenExternalRoutes
+            ? 'Confirm truck access, ports, ferry routes, road restrictions, receiving schedule, and final quote manually.'
+            : 'Open the location picker or update the inquiry address before using route links.'}
+        </small>
       </div>
 
       <div className="admin-route-actions">
-        <a href={buildWazeUrl(inquiry)} target="_blank" rel="noreferrer">
-          <Navigation size={16} />
-          Waze delivery
-        </a>
-        <a href={buildGoogleMapsUrl(inquiry)} target="_blank" rel="noreferrer">
-          <MapPinned size={16} />
-          Google route
-        </a>
+        {canOpenExternalRoutes ? (
+          <>
+            <a href={wazeUrl} target="_blank" rel="noreferrer">
+              <Navigation size={16} />
+              Waze delivery
+            </a>
+            <a href={googleMapsUrl} target="_blank" rel="noreferrer">
+              <MapPinned size={16} />
+              Google route
+            </a>
+          </>
+        ) : (
+          <>
+            <span className="disabled" title="Pickup and delivery coordinates are required">
+              <Navigation size={16} />
+              Waze unavailable
+            </span>
+            <span className="disabled" title="Pickup and delivery coordinates are required">
+              <MapPinned size={16} />
+              Google unavailable
+            </span>
+          </>
+        )}
       </div>
     </section>
   );

@@ -18,7 +18,7 @@ export async function getUserFromRequest(request) {
   // pasted data URL or malformed session blob here, fail clearly before the
   // auth lookup instead of producing noisy upload/profile errors.
   if (token.length > 8192) {
-    return { user: null, error: 'Login token is too large. Please sign out, clear this localhost session, and sign in again.' };
+    return { user: null, error: 'Login token is too large. Please sign out, clear this browser session, and sign in again.' };
   }
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey, {
